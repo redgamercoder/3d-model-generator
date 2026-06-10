@@ -8,9 +8,35 @@
   <script type="importmap">
     {
       "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
-        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+        "three": "./vendor/three.module.js",
+        "three/addons/": "./vendor/addons/"
       }
+    }
+  </script>
+  <script>
+    // Surface any startup failure instead of dying silently with dead buttons.
+    function showFatalError(msg) {
+      let banner = document.getElementById('error-banner');
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'error-banner';
+        document.body.prepend(banner);
+      }
+      banner.textContent = '⚠ ' + msg;
+    }
+    window.addEventListener('error', (e) => {
+      showFatalError(e.message + (e.filename ? ` (${e.filename.split('/').pop()}:${e.lineno})` : ''));
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      showFatalError(e.reason?.message ?? String(e.reason));
+    });
+    if (location.protocol === 'file:') {
+      window.addEventListener('DOMContentLoaded', () => {
+        showFatalError(
+          'This app must be served over HTTP — browsers block JS modules on file:// pages. ' +
+          'Run "npx serve ." or "python3 -m http.server" in the project folder and open the printed URL.'
+        );
+      });
     }
   </script>
 </head>
@@ -94,8 +120,8 @@
       <section id="help">
         <h2>Tips</h2>
         <p>Drag to orbit, scroll to zoom, right-drag to pan. Click an object to select it.
-        The grid is a 220 × 220 mm print bed. Export STL and drop the file straight into
-        your slicer (Cura, PrusaSlicer, Bambu Studio…).</p>
+        The outlined box is a 256 × 256 × 256 mm build volume. Export STL and drop the file
+        straight into your slicer (Cura, PrusaSlicer, Bambu Studio…).</p>
       </section>
     </aside>
   </main>

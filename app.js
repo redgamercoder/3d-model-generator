@@ -5,7 +5,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // conventions, so exported STL needs no axis conversion.
 THREE.Object3D.DEFAULT_UP = new THREE.Vector3(0, 0, 1);
 
-const BED_SIZE = 220;
+const BED_SIZE = 256;   // X/Y, mm
+const BED_HEIGHT = 256; // Z, mm
 
 // ---------------------------------------------------------------------------
 // Scene setup
@@ -37,15 +38,17 @@ fillLight.position.set(-200, 150, 100);
 scene.add(fillLight);
 
 // Print bed: GridHelper lives in the XZ plane, rotate it into XY.
-const grid = new THREE.GridHelper(BED_SIZE, 22, 0x4f9cff, 0x2c323e);
+const grid = new THREE.GridHelper(BED_SIZE, 16, 0x4f9cff, 0x2c323e);
 grid.rotation.x = Math.PI / 2;
 scene.add(grid);
 
-const bedOutline = new THREE.LineSegments(
-  new THREE.EdgesGeometry(new THREE.PlaneGeometry(BED_SIZE, BED_SIZE)),
-  new THREE.LineBasicMaterial({ color: 0x4f9cff })
+// Build volume outline (BED_SIZE × BED_SIZE × BED_HEIGHT).
+const buildVolume = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(BED_SIZE, BED_SIZE, BED_HEIGHT)),
+  new THREE.LineBasicMaterial({ color: 0x4f9cff, transparent: true, opacity: 0.5 })
 );
-scene.add(bedOutline);
+buildVolume.position.z = BED_HEIGHT / 2;
+scene.add(buildVolume);
 
 const modelGroup = new THREE.Group();
 scene.add(modelGroup);
@@ -384,7 +387,7 @@ fileInput.addEventListener('change', async () => {
 
 const AI_SYSTEM_PROMPT = `You design 3D-printable models in a simple CAD editor by composing primitive solids.
 
-Coordinate system: millimeters, Z is up, the print bed is 220 × 220 mm centered on the origin at z = 0. The model must rest on the bed: its lowest point must be at z = 0, never below.
+Coordinate system: millimeters, Z is up, the print bed is ${BED_SIZE} × ${BED_SIZE} mm centered on the origin at z = 0, with ${BED_HEIGHT} mm of build height. The model must rest on the bed: its lowest point must be at z = 0, never below, and it must fit inside the build volume.
 
 Available primitive types — "size" is the shape's bounding box in mm:
 - box: rectangular cuboid

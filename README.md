@@ -44,7 +44,7 @@ as STL.
   solids are fine — modern slicers union them automatically.
 - **Save / Load**: projects are plain JSON files.
 
-The grid is a 220 × 220 mm print bed for scale reference.
+The outlined box is a 256 × 256 × 256 mm build volume for scale reference. Three.js is vendored locally in `vendor/`, so the editor itself works offline (only AI generation needs the network).
 
 ## Example model: phone stand
 
