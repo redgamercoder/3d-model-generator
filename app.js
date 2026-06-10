@@ -378,6 +378,178 @@ fileInput.addEventListener('change', async () => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// AI generation (Claude API)
+// ---------------------------------------------------------------------------
+
+const AI_SYSTEM_PROMPT = `You design 3D-printable models in a simple CAD editor by composing primitive solids.
+
+Coordinate system: millimeters, Z is up, the print bed is 220 × 220 mm centered on the origin at z = 0. The model must rest on the bed: its lowest point must be at z = 0, never below.
+
+Available primitive types — "size" is the shape's bounding box in mm:
+- box: rectangular cuboid
+- cylinder: axis along Z; size x/y are the diameters, size z is the height
+- sphere: ellipsoid filling the bounding box
+- cone: apex points up (+Z); size x/y are the base diameters, size z is the height
+- torus: ring lying flat in the XY plane; size x/y are the outer diameter, size z is the tube height (use about a quarter of the outer diameter for a round tube)
+
+Each object has: type, name (short, human-readable), color (hex), pos (the center of the object, [x, y, z]), rot (rotation in degrees [x, y, z], applied about the object's center), and size ([x, y, z] in mm).
+
+Design rules for printability:
+- Overlapping solids are fine — slicers union them. Use overlap to join parts firmly; never leave parts floating or touching only at an edge.
+- Prefer flat bases and avoid steep overhangs (> 45° from vertical) so the model prints without supports.
+- Build hollow containers from a floor plus walls (around 2–3 mm thick); there are no boolean subtract operations.
+- Keep the model within the bed and at a sensible real-world scale for what's asked.
+- Remember that for a rotated object, pos is still its center — compute z so the lowest point after rotation sits at exactly 0 (or slightly embedded in another part).
+
+Worked example — an angled phone stand:
+{"model_name": "Phone stand", "objects": [
+  {"type": "box", "name": "Base", "color": "#4f9cff", "pos": [0, 0, 3], "rot": [0, 0, 0], "size": [90, 70, 6]},
+  {"type": "box", "name": "Backrest", "color": "#4f9cff", "pos": [0, 14, 39], "rot": [-20, 0, 0], "size": [90, 6, 80]},
+  {"type": "box", "name": "Front lip L", "color": "#4f9cff", "pos": [-29, -28, 14], "rot": [0, 0, 0], "size": [32, 6, 22]},
+  {"type": "box", "name": "Front lip R", "color": "#4f9cff", "pos": [29, -28, 14], "rot": [0, 0, 0], "size": [32, 6, 22]}
+]}`;
+
+const AI_SCENE_SCHEMA = {
+  type: 'object',
+  properties: {
+    model_name: { type: 'string', description: 'Short name for the model' },
+    objects: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', enum: ['box', 'cylinder', 'sphere', 'cone', 'torus'] },
+          name: { type: 'string' },
+          color: { type: 'string', description: 'Hex color like #4f9cff' },
+          pos: { type: 'array', items: { type: 'number' }, description: 'Center [x, y, z] in mm, exactly 3 numbers' },
+          rot: { type: 'array', items: { type: 'number' }, description: 'Rotation [x, y, z] in degrees, exactly 3 numbers' },
+          size: { type: 'array', items: { type: 'number' }, description: 'Bounding box [x, y, z] in mm, exactly 3 numbers' },
+        },
+        required: ['type', 'name', 'color', 'pos', 'rot', 'size'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['model_name', 'objects'],
+  additionalProperties: false,
+};
+
+const aiPrompt = document.getElementById('ai-prompt');
+const aiGenerateBtn = document.getElementById('ai-generate');
+const aiKeepCheckbox = document.getElementById('ai-keep');
+const aiStatus = document.getElementById('ai-status');
+
+let anthropicModule = null;
+
+async function loadAnthropicSDK() {
+  if (!anthropicModule) {
+    anthropicModule = await import('https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk/+esm');
+  }
+  return anthropicModule.default;
+}
+
+function getApiKey({ forcePrompt = false } = {}) {
+  let key = localStorage.getItem('anthropic-api-key');
+  if (!key || forcePrompt) {
+    key = window.prompt(
+      'Enter your Anthropic API key (console.anthropic.com → API keys).\n' +
+        'It is stored only in this browser (localStorage) and sent only to api.anthropic.com.',
+      key ?? ''
+    );
+    if (key) localStorage.setItem('anthropic-api-key', key.trim());
+  }
+  return key?.trim() || null;
+}
+
+document.getElementById('ai-key-btn').addEventListener('click', () => getApiKey({ forcePrompt: true }));
+
+function setAiStatus(text, isError = false) {
+  aiStatus.textContent = text;
+  aiStatus.classList.toggle('error', isError);
+}
+
+function clearScene() {
+  select(null);
+  for (const m of [...modelGroup.children]) {
+    modelGroup.remove(m);
+    m.geometry.dispose();
+    m.material.dispose();
+  }
+}
+
+async function generateFromPrompt() {
+  const prompt = aiPrompt.value.trim();
+  if (!prompt) return;
+  const apiKey = getApiKey();
+  if (!apiKey) return;
+
+  aiGenerateBtn.disabled = true;
+  setAiStatus('Loading…');
+
+  try {
+    const Anthropic = await loadAnthropicSDK();
+    const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+
+    setAiStatus('Designing…');
+    let received = 0;
+    const stream = client.messages.stream({
+      model: 'claude-opus-4-8',
+      max_tokens: 32000,
+      thinking: { type: 'adaptive' },
+      system: AI_SYSTEM_PROMPT,
+      output_config: { format: { type: 'json_schema', schema: AI_SCENE_SCHEMA } },
+      messages: [{ role: 'user', content: `Design this as a 3D-printable model: ${prompt}` }],
+    });
+    stream.on('text', (delta) => {
+      received += delta.length;
+      setAiStatus(`Designing… ${received} chars`);
+    });
+    const message = await stream.finalMessage();
+
+    if (message.stop_reason === 'refusal') {
+      throw new Error('Claude declined this request.');
+    }
+    if (message.stop_reason === 'max_tokens') {
+      throw new Error('Response was cut off — try a simpler description.');
+    }
+
+    const text = message.content.find((b) => b.type === 'text')?.text;
+    if (!text) throw new Error('No design returned.');
+    const scene = JSON.parse(text);
+
+    if (!aiKeepCheckbox.checked) clearScene();
+    for (const o of scene.objects) {
+      addObject(o.type, {
+        name: o.name,
+        color: o.color,
+        pos: o.pos,
+        rot: o.rot,
+        size: o.size.map((v) => Math.max(0.1, v)),
+      });
+    }
+    select(null);
+    setAiStatus(`Built "${scene.model_name}" — ${scene.objects.length} parts`);
+  } catch (err) {
+    if (err?.status === 401) {
+      localStorage.removeItem('anthropic-api-key');
+      setAiStatus('Invalid API key — click "API key" to re-enter it.', true);
+    } else if (err?.status === 429) {
+      setAiStatus('Rate limited — wait a moment and try again.', true);
+    } else {
+      setAiStatus(err.message || 'Generation failed.', true);
+    }
+    console.error(err);
+  } finally {
+    aiGenerateBtn.disabled = false;
+  }
+}
+
+aiGenerateBtn.addEventListener('click', generateFromPrompt);
+aiPrompt.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') generateFromPrompt();
+});
+
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

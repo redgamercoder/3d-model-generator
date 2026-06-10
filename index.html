@@ -34,6 +34,18 @@
       <button id="save-project">Save</button>
       <button id="load-project">Load</button>
     </div>
+    <div id="ai-bar">
+      <span class="ai-label">AI</span>
+      <input
+        type="text"
+        id="ai-prompt"
+        placeholder="Describe what to make — e.g. &quot;a desk organizer with three compartments&quot;"
+      />
+      <button id="ai-generate" class="primary">Generate</button>
+      <label class="ai-keep"><input type="checkbox" id="ai-keep" /> Keep existing objects</label>
+      <button id="ai-key-btn" title="Set or change your Claude API key">API key</button>
+      <span id="ai-status"></span>
+    </div>
   </header>
 
   <main>
