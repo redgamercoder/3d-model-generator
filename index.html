@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Model Generator — Browser CAD for 3D Printing</title>
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <header id="topbar">
+    <h1>3D Model Generator</h1>
+    <div class="toolbar">
+      <span class="group-label">Add</span>
+      <button data-add="box">Box</button>
+      <button data-add="cylinder">Cylinder</button>
+      <button data-add="sphere">Sphere</button>
+      <button data-add="cone">Cone</button>
+      <button data-add="torus">Torus</button>
+      <span class="sep"></span>
+      <span class="group-label">Presets</span>
+      <button data-preset="phoneStand">Phone Stand</button>
+      <button data-preset="penCup">Pen Cup</button>
+      <button data-preset="hook">Wall Hook</button>
+      <span class="sep"></span>
+      <button id="export-stl" class="primary">Export STL</button>
+      <button id="save-project">Save</button>
+      <button id="load-project">Load</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="viewport"></div>
+
+    <aside id="sidebar">
+      <section>
+        <h2>Objects</h2>
+        <ul id="object-list"></ul>
+      </section>
+
+      <section id="properties" class="hidden">
+        <h2>Properties</h2>
+        <label>Name <input type="text" id="prop-name" /></label>
+
+        <h3>Position (mm)</h3>
+        <div class="vec3">
+          <label>X <input type="number" step="1" id="pos-x" /></label>
+          <label>Y <input type="number" step="1" id="pos-y" /></label>
+          <label>Z <input type="number" step="1" id="pos-z" /></label>
+        </div>
+
+        <h3>Rotation (°)</h3>
+        <div class="vec3">
+          <label>X <input type="number" step="5" id="rot-x" /></label>
+          <label>Y <input type="number" step="5" id="rot-y" /></label>
+          <label>Z <input type="number" step="5" id="rot-z" /></label>
+        </div>
+
+        <h3>Size (mm)</h3>
+        <div class="vec3">
+          <label>X <input type="number" step="1" min="0.1" id="size-x" /></label>
+          <label>Y <input type="number" step="1" min="0.1" id="size-y" /></label>
+          <label>Z <input type="number" step="1" min="0.1" id="size-z" /></label>
+        </div>
+
+        <label>Color <input type="color" id="prop-color" /></label>
+
+        <div class="btn-row">
+          <button id="duplicate-btn">Duplicate</button>
+          <button id="drop-btn" title="Rest object on the print bed">Drop to Bed</button>
+          <button id="delete-btn" class="danger">Delete</button>
+        </div>
+      </section>
+
+      <section id="help">
+        <h2>Tips</h2>
+        <p>Drag to orbit, scroll to zoom, right-drag to pan. Click an object to select it.
+        The grid is a 220 × 220 mm print bed. Export STL and drop the file straight into
+        your slicer (Cura, PrusaSlicer, Bambu Studio…).</p>
+      </section>
+    </aside>
+  </main>
+
+  <input type="file" id="file-input" accept=".json" hidden />
+  <script type="module" src="app.js"></script>
+</body>
+</html>
