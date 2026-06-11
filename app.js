@@ -382,8 +382,10 @@ fileInput.addEventListener('change', async () => {
 });
 
 // ---------------------------------------------------------------------------
-// AI generation (Claude API)
+// AI generation (Gemini API)
 // ---------------------------------------------------------------------------
+
+const GEMINI_MODEL = 'gemini-2.5-pro';
 
 const AI_SYSTEM_PROMPT = `You design 3D-printable models in a simple CAD editor by composing primitive solids.
 
@@ -413,29 +415,29 @@ Worked example — an angled phone stand:
   {"type": "box", "name": "Front lip R", "color": "#4f9cff", "pos": [29, -28, 14], "rot": [0, 0, 0], "size": [32, 6, 22]}
 ]}`;
 
+// Gemini structured-output schema (OpenAPI-style subset).
 const AI_SCENE_SCHEMA = {
-  type: 'object',
+  type: 'OBJECT',
   properties: {
-    model_name: { type: 'string', description: 'Short name for the model' },
+    model_name: { type: 'STRING', description: 'Short name for the model' },
     objects: {
-      type: 'array',
+      type: 'ARRAY',
       items: {
-        type: 'object',
+        type: 'OBJECT',
         properties: {
-          type: { type: 'string', enum: ['box', 'cylinder', 'sphere', 'cone', 'torus'] },
-          name: { type: 'string' },
-          color: { type: 'string', description: 'Hex color like #4f9cff' },
-          pos: { type: 'array', items: { type: 'number' }, description: 'Center [x, y, z] in mm, exactly 3 numbers' },
-          rot: { type: 'array', items: { type: 'number' }, description: 'Rotation [x, y, z] in degrees, exactly 3 numbers' },
-          size: { type: 'array', items: { type: 'number' }, description: 'Bounding box [x, y, z] in mm, exactly 3 numbers' },
+          type: { type: 'STRING', enum: ['box', 'cylinder', 'sphere', 'cone', 'torus'] },
+          name: { type: 'STRING' },
+          color: { type: 'STRING', description: 'Hex color like #4f9cff' },
+          pos: { type: 'ARRAY', items: { type: 'NUMBER' }, description: 'Center [x, y, z] in mm, exactly 3 numbers' },
+          rot: { type: 'ARRAY', items: { type: 'NUMBER' }, description: 'Rotation [x, y, z] in degrees, exactly 3 numbers' },
+          size: { type: 'ARRAY', items: { type: 'NUMBER' }, description: 'Bounding box [x, y, z] in mm, exactly 3 numbers' },
         },
         required: ['type', 'name', 'color', 'pos', 'rot', 'size'],
-        additionalProperties: false,
+        propertyOrdering: ['type', 'name', 'color', 'pos', 'rot', 'size'],
       },
     },
   },
   required: ['model_name', 'objects'],
-  additionalProperties: false,
 };
 
 const aiPrompt = document.getElementById('ai-prompt');
@@ -443,24 +445,15 @@ const aiGenerateBtn = document.getElementById('ai-generate');
 const aiKeepCheckbox = document.getElementById('ai-keep');
 const aiStatus = document.getElementById('ai-status');
 
-let anthropicModule = null;
-
-async function loadAnthropicSDK() {
-  if (!anthropicModule) {
-    anthropicModule = await import('https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk/+esm');
-  }
-  return anthropicModule.default;
-}
-
 function getApiKey({ forcePrompt = false } = {}) {
-  let key = localStorage.getItem('anthropic-api-key');
+  let key = localStorage.getItem('gemini-api-key');
   if (!key || forcePrompt) {
     key = window.prompt(
-      'Enter your Anthropic API key (console.anthropic.com → API keys).\n' +
-        'It is stored only in this browser (localStorage) and sent only to api.anthropic.com.',
+      'Enter your Gemini API key (aistudio.google.com/apikey).\n' +
+        'It is stored only in this browser (localStorage) and sent only to generativelanguage.googleapis.com.',
       key ?? ''
     );
-    if (key) localStorage.setItem('anthropic-api-key', key.trim());
+    if (key) localStorage.setItem('gemini-api-key', key.trim());
   }
   return key?.trim() || null;
 }
@@ -491,33 +484,54 @@ async function generateFromPrompt() {
   setAiStatus('Loading…');
 
   try {
-    const Anthropic = await loadAnthropicSDK();
-    const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
-
     setAiStatus('Designing…');
-    let received = 0;
-    const stream = client.messages.stream({
-      model: 'claude-opus-4-8',
-      max_tokens: 32000,
-      thinking: { type: 'adaptive' },
-      system: AI_SYSTEM_PROMPT,
-      output_config: { format: { type: 'json_schema', schema: AI_SCENE_SCHEMA } },
-      messages: [{ role: 'user', content: `Design this as a 3D-printable model: ${prompt}` }],
-    });
-    stream.on('text', (delta) => {
-      received += delta.length;
-      setAiStatus(`Designing… ${received} chars`);
-    });
-    const message = await stream.finalMessage();
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: AI_SYSTEM_PROMPT }] },
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: `Design this as a 3D-printable model: ${prompt}` }],
+            },
+          ],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            responseSchema: AI_SCENE_SCHEMA,
+          },
+        }),
+      }
+    );
 
-    if (message.stop_reason === 'refusal') {
-      throw new Error('Claude declined this request.');
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      const apiMsg = body?.error?.message ?? `HTTP ${res.status}`;
+      const err = new Error(apiMsg);
+      err.status = res.status;
+      throw err;
     }
-    if (message.stop_reason === 'max_tokens') {
+
+    const data = await res.json();
+    const candidate = data.candidates?.[0];
+    if (!candidate) {
+      throw new Error(data.promptFeedback?.blockReason
+        ? `Request was blocked (${data.promptFeedback.blockReason}).`
+        : 'No design returned.');
+    }
+    if (candidate.finishReason === 'MAX_TOKENS') {
       throw new Error('Response was cut off — try a simpler description.');
     }
+    if (candidate.finishReason === 'SAFETY') {
+      throw new Error('Gemini declined this request.');
+    }
 
-    const text = message.content.find((b) => b.type === 'text')?.text;
+    const text = candidate.content?.parts?.map((p) => p.text ?? '').join('');
     if (!text) throw new Error('No design returned.');
     const scene = JSON.parse(text);
 
@@ -534,8 +548,8 @@ async function generateFromPrompt() {
     select(null);
     setAiStatus(`Built "${scene.model_name}" — ${scene.objects.length} parts`);
   } catch (err) {
-    if (err?.status === 401) {
-      localStorage.removeItem('anthropic-api-key');
+    if (err?.status === 400 && /api key/i.test(err.message) || err?.status === 401 || err?.status === 403) {
+      localStorage.removeItem('gemini-api-key');
       setAiStatus('Invalid API key — click "API key" to re-enter it.', true);
     } else if (err?.status === 429) {
       setAiStatus('Rate limited — wait a moment and try again.', true);

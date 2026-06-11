@@ -19,16 +19,16 @@ not opened as a `file://` URL, because it loads three.js as an ES module.)
 ## AI generation
 
 Type what you want into the **AI bar** ("a hexagonal pen cup", "a wall hook for
-headphones", "a stand for a Nintendo Switch") and click **Generate** — Claude
+headphones", "a stand for a Nintendo Switch") and click **Generate** — the AI
 designs the model and builds it on the print bed, ready to tweak and export
 as STL.
 
-- Uses the Claude API (`claude-opus-4-8`) with structured output, so the model
-  always comes back as a valid scene.
-- You'll be asked for your Anthropic API key on first use
-  ([console.anthropic.com](https://console.anthropic.com) → API keys). The key
+- Uses the Gemini API (`gemini-2.5-pro`) with structured JSON output, so the
+  model always comes back as a valid scene.
+- You'll be asked for your Gemini API key on first use — get a free one at
+  [aistudio.google.com/apikey](https://aistudio.google.com/apikey). The key
   is stored only in your browser's localStorage and sent only to
-  `api.anthropic.com` — there is no backend.
+  `generativelanguage.googleapis.com` — there is no backend.
 - By default each generation replaces the scene; check **Keep existing
   objects** to add to it instead.
 - Generated objects are regular editor objects — select, resize, recolor, or
