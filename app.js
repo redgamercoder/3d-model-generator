@@ -105,6 +105,7 @@ function addObject(type, opts = {}) {
 
   const size = opts.size ?? DEFAULT_SIZE[type];
   mesh.scale.set(...size);
+  mesh.userData.baseSize = [...size];
   if (opts.rot) mesh.rotation.set(...opts.rot.map(THREE.MathUtils.degToRad));
   if (opts.pos) {
     mesh.position.set(...opts.pos);
@@ -137,6 +138,7 @@ function select(mesh) {
   if (selected) selected.material.emissive.setHex(0x224466);
   refreshObjectList();
   refreshProps();
+  updateQuickbar();
 }
 
 function refreshObjectList() {
@@ -198,13 +200,14 @@ function applyProps() {
     selected.scale[axis] = Math.max(0.1, parseFloat(propInputs.size[i].value) || 0.1);
   });
   refreshObjectList();
+  updateQuickbar();
 }
 
 for (const input of [propInputs.name, propInputs.color, ...propInputs.pos, ...propInputs.rot, ...propInputs.size]) {
   input.addEventListener('input', applyProps);
 }
 
-document.getElementById('delete-btn').addEventListener('click', () => {
+function deleteSelected() {
   if (!selected) return;
   const mesh = selected;
   select(null);
@@ -212,9 +215,9 @@ document.getElementById('delete-btn').addEventListener('click', () => {
   mesh.geometry.dispose();
   mesh.material.dispose();
   refreshObjectList();
-});
+}
 
-document.getElementById('duplicate-btn').addEventListener('click', () => {
+function duplicateSelected() {
   if (!selected) return;
   const src = selected;
   objectCounter += 1;
@@ -225,34 +228,111 @@ document.getElementById('duplicate-btn').addEventListener('click', () => {
   copy.position.x += 15;
   modelGroup.add(copy);
   select(copy);
-});
+}
 
-document.getElementById('drop-btn').addEventListener('click', () => {
+function dropSelected() {
   if (!selected) return;
   dropToBed(selected);
   refreshProps();
-});
+}
 
-// Click-to-select with a drag threshold so orbiting doesn't change selection.
+document.getElementById('delete-btn').addEventListener('click', deleteSelected);
+document.getElementById('duplicate-btn').addEventListener('click', duplicateSelected);
+document.getElementById('drop-btn').addEventListener('click', dropSelected);
+
+// ---------------------------------------------------------------------------
+// Quick actions bar (shown when an object is selected)
+// ---------------------------------------------------------------------------
+
+const quickbar = document.getElementById('quickbar');
+const qbScaleLabel = document.getElementById('qb-scale-label');
+
+function updateQuickbar() {
+  quickbar.classList.toggle('hidden', !selected);
+  if (selected && selected.userData.baseSize) {
+    const pct = (selected.scale.x / selected.userData.baseSize[0]) * 100;
+    qbScaleLabel.textContent = `${Math.round(pct)}%`;
+  }
+}
+
+// Run a transform on the selected object while keeping its lowest point at
+// the same height, so parts stay resting on the bed (or on each other).
+function withBottomAnchored(fn) {
+  if (!selected) return;
+  selected.updateMatrixWorld(true);
+  const before = new THREE.Box3().setFromObject(selected).min.z;
+  fn(selected);
+  selected.updateMatrixWorld(true);
+  const after = new THREE.Box3().setFromObject(selected).min.z;
+  selected.position.z += before - after;
+  refreshProps();
+  updateQuickbar();
+}
+
+const scaleSelected = (factor) => withBottomAnchored((m) => m.scale.multiplyScalar(factor));
+const rotateSelected = (deg) => withBottomAnchored((m) => (m.rotation.z += THREE.MathUtils.degToRad(deg)));
+
+document.getElementById('qb-scale-up').addEventListener('click', () => scaleSelected(1.1));
+document.getElementById('qb-scale-down').addEventListener('click', () => scaleSelected(1 / 1.1));
+document.getElementById('qb-rot-ccw').addEventListener('click', () => rotateSelected(45));
+document.getElementById('qb-rot-cw').addEventListener('click', () => rotateSelected(-45));
+document.getElementById('qb-drop').addEventListener('click', dropSelected);
+document.getElementById('qb-dup').addEventListener('click', duplicateSelected);
+document.getElementById('qb-del').addEventListener('click', deleteSelected);
+
+// ---------------------------------------------------------------------------
+// Tap to select, drag to move (orbit only when dragging empty space)
+// ---------------------------------------------------------------------------
+
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
+const dragPoint = new THREE.Vector3();
 let downPos = null;
+let drag = null; // { mesh, plane, offset }
 
-renderer.domElement.addEventListener('pointerdown', (e) => {
-  downPos = [e.clientX, e.clientY];
-});
-
-renderer.domElement.addEventListener('pointerup', (e) => {
-  if (!downPos) return;
-  const moved = Math.hypot(e.clientX - downPos[0], e.clientY - downPos[1]);
-  downPos = null;
-  if (moved > 5) return;
+function setPointerFromEvent(e) {
   const rect = renderer.domElement.getBoundingClientRect();
   pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  downPos = [e.clientX, e.clientY];
+  setPointerFromEvent(e);
   raycaster.setFromCamera(pointer, camera);
   const hits = raycaster.intersectObjects(modelGroup.children, false);
-  select(hits.length ? hits[0].object : null);
+  if (!hits.length) return;
+  select(hits[0].object);
+  // Drag the object in the horizontal plane through the grab point.
+  drag = {
+    mesh: hits[0].object,
+    plane: new THREE.Plane(new THREE.Vector3(0, 0, 1), -hits[0].point.z),
+    offset: hits[0].object.position.clone().sub(hits[0].point),
+  };
+  controls.enabled = false;
+  renderer.domElement.setPointerCapture(e.pointerId);
+});
+
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  setPointerFromEvent(e);
+  raycaster.setFromCamera(pointer, camera);
+  if (!raycaster.ray.intersectPlane(drag.plane, dragPoint)) return;
+  const half = BED_SIZE / 2;
+  drag.mesh.position.x = THREE.MathUtils.clamp(dragPoint.x + drag.offset.x, -half, half);
+  drag.mesh.position.y = THREE.MathUtils.clamp(dragPoint.y + drag.offset.y, -half, half);
+  refreshProps();
+});
+
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (drag) {
+    drag = null;
+    controls.enabled = true;
+  } else if (downPos && Math.hypot(e.clientX - downPos[0], e.clientY - downPos[1]) <= 5) {
+    select(null); // tapped empty space
+  }
+  downPos = null;
 });
 
 // ---------------------------------------------------------------------------

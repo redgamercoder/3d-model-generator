@@ -75,7 +75,20 @@
   </header>
 
   <main>
-    <div id="viewport"></div>
+    <div id="viewport">
+      <div id="quickbar" class="hidden">
+        <button id="qb-scale-down" title="Scale down 10%">−</button>
+        <span id="qb-scale-label">100%</span>
+        <button id="qb-scale-up" title="Scale up 10%">+</button>
+        <span class="qb-sep"></span>
+        <button id="qb-rot-ccw" title="Rotate 45° counter-clockwise">⟲</button>
+        <button id="qb-rot-cw" title="Rotate 45° clockwise">⟳</button>
+        <span class="qb-sep"></span>
+        <button id="qb-drop" title="Rest on the print bed">Drop</button>
+        <button id="qb-dup" title="Duplicate">Copy</button>
+        <button id="qb-del" class="danger" title="Delete">Delete</button>
+      </div>
+    </div>
 
     <aside id="sidebar">
       <section>
@@ -119,9 +132,10 @@
 
       <section id="help">
         <h2>Tips</h2>
-        <p>Drag to orbit, scroll to zoom, right-drag to pan. Click an object to select it.
-        The outlined box is a 256 × 256 × 256 mm build volume. Export STL and drop the file
-        straight into your slicer (Cura, PrusaSlicer, Bambu Studio…).</p>
+        <p>Tap an object to select it, then drag it to move it around the bed — the bar at
+        the bottom scales, rotates, copies, or deletes it. Drag empty space to orbit, scroll
+        to zoom, right-drag to pan. The outlined box is a 256 × 256 × 256 mm build volume.
+        Export STL and drop the file straight into your slicer.</p>
       </section>
     </aside>
   </main>
