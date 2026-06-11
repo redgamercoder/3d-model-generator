@@ -465,7 +465,9 @@ fileInput.addEventListener('change', async () => {
 // AI generation (Gemini API)
 // ---------------------------------------------------------------------------
 
-const GEMINI_MODEL = 'gemini-2.5-pro';
+// gemini-2.5-flash has a generous free tier; gemini-2.5-pro is barely (or not)
+// available on free API keys and immediately returns 429 there.
+const GEMINI_MODEL = 'gemini-2.5-flash';
 
 const AI_SYSTEM_PROMPT = `You design 3D-printable models in a simple CAD editor by composing primitive solids.
 
@@ -594,6 +596,8 @@ async function generateFromPrompt() {
       const apiMsg = body?.error?.message ?? `HTTP ${res.status}`;
       const err = new Error(apiMsg);
       err.status = res.status;
+      // Google includes a RetryInfo detail like {"retryDelay": "14s"} on 429s.
+      err.retryDelay = body?.error?.details?.find((d) => d.retryDelay)?.retryDelay;
       throw err;
     }
 
@@ -632,7 +636,11 @@ async function generateFromPrompt() {
       localStorage.removeItem('gemini-api-key');
       setAiStatus('Invalid API key — click "API key" to re-enter it.', true);
     } else if (err?.status === 429) {
-      setAiStatus('Rate limited — wait a moment and try again.', true);
+      const wait = err.retryDelay ? ` Try again in ${err.retryDelay}.` : ' Wait a minute and try again.';
+      const quota = /quota|free tier|plan/i.test(err.message)
+        ? ' (Free-tier quota — see aistudio.google.com for limits.)'
+        : '';
+      setAiStatus(`Rate limited.${wait}${quota}`, true);
     } else {
       setAiStatus(err.message || 'Generation failed.', true);
     }

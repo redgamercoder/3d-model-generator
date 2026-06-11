@@ -23,7 +23,7 @@ headphones", "a stand for a Nintendo Switch") and click **Generate** — the AI
 designs the model and builds it on the print bed, ready to tweak and export
 as STL.
 
-- Uses the Gemini API (`gemini-2.5-pro`) with structured JSON output, so the
+- Uses the Gemini API (`gemini-2.5-flash`) with structured JSON output, so the
   model always comes back as a valid scene.
 - You'll be asked for your Gemini API key on first use — get a free one at
   [aistudio.google.com/apikey](https://aistudio.google.com/apikey). The key
