@@ -64,13 +64,13 @@ node scripts/generate-phone-stand.mjs
 ## Example model: company logos
 
 [`models/company-logos.stl`](models/company-logos.stl) combines five tech
-logomarks on one base plate — **Apple**, **Anthropic**, **SpaceX**, **Nvidia**,
-and **OpenAI** — each as a 4 mm raised relief:
+logos into one mark: a big **Apple** silhouette (bite + leaf) forms the base
+plate, with the **Anthropic** A, the **SpaceX** swoosh and X, the **Nvidia**
+swirl-eye, and the **OpenAI** blossom raised on top of it:
 
-- 250 mm wide, 56 mm deep, 6 mm tall (2 mm plate + 4 mm relief)
-- Stylized single-colour approximations (apple silhouette, letter forms, a
-  blossom) built from extruded polygons
-- Prints flat with no supports
+- ~99 × 128 mm footprint, 7 mm tall (4 mm apple plate + 3 mm relief)
+- Stylized single-colour approximations built from extruded polygons
+- Prints flat with no supports; pause at the 4 mm layer for a two-colour print
 
 Regenerate it with:
 

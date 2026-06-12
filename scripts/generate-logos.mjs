@@ -1,12 +1,13 @@
 #!/usr/bin/env node
-// Generates models/company-logos.stl — five tech-company logomarks combined on
-// one shared base plate, each as a raised, 3D-printable relief:
+// Generates models/company-logos.stl — five tech-company logos combined into
+// ONE mark: a big Apple silhouette (bite + leaf) forms the base plate, and the
+// other four marks sit on top of it as raised, 3D-printable reliefs:
 //
-//   Apple · Anthropic · SpaceX · Nvidia · OpenAI
+//   Anthropic "A" (upper left) · SpaceX swoosh + X (across / right)
+//   Nvidia swirl-eye (lower left) · OpenAI blossom (bottom center)
 //
-// The marks are stylized, single-colour approximations built from extruded
-// polygons (apple silhouette, letter forms, a blossom) — enough to read at a
-// glance and to print cleanly with no supports.
+// The marks are stylized, single-colour approximations — enough to read at a
+// glance and to print flat with no supports.
 //
 // Units are millimeters, Z is up, the model rests on Z = 0.
 //
@@ -21,6 +22,7 @@ const triangles = [];
 // --- 2D polygon → extruded prism --------------------------------------------
 
 const TAU = Math.PI * 2;
+const deg = (d) => (d * Math.PI) / 180;
 
 // Signed area of a 2D ring (CCW positive).
 function signedArea(p) {
@@ -45,14 +47,14 @@ function pointInTri(p, a, b, c) {
 }
 
 // Ear-clipping triangulation of a simple polygon (handles concave shapes like
-// the apple's bite). Returns an array of index triples.
+// the apple's bite and the swirl). Returns an array of index triples.
 function earClip(pts) {
   const n = pts.length;
   let idx = [...Array(n).keys()];
   if (signedArea(pts) < 0) idx.reverse(); // ensure CCW
   const tris = [];
   let guard = 0;
-  while (idx.length > 3 && guard++ < 20000) {
+  while (idx.length > 3 && guard++ < 100000) {
     let clipped = false;
     for (let i = 0; i < idx.length; i++) {
       const i0 = idx[(i - 1 + idx.length) % idx.length];
@@ -79,7 +81,7 @@ function earClip(pts) {
 
 // Apply scale → rotate(deg) → translate to a list of 2D points.
 function place(pts, { s = 1, rot = 0, dx = 0, dy = 0 } = {}) {
-  const r = (rot * Math.PI) / 180, c = Math.cos(r), si = Math.sin(r);
+  const r = deg(rot), c = Math.cos(r), si = Math.sin(r);
   return pts.map(([x, y]) => {
     const X = x * s, Y = y * s;
     return [X * c - Y * si + dx, X * si + Y * c + dy];
@@ -94,25 +96,23 @@ function extrude(ring, z0, z1) {
   const tris = earClip(pts);
 
   for (const [a, b, c] of tris) {
-    // top (+z)
     triangles.push([
       [pts[a][0], pts[a][1], z1],
       [pts[b][0], pts[b][1], z1],
       [pts[c][0], pts[c][1], z1],
     ]);
-    // bottom (−z), reversed winding
     triangles.push([
       [pts[a][0], pts[a][1], z0],
       [pts[c][0], pts[c][1], z0],
       [pts[b][0], pts[b][1], z0],
     ]);
   }
-  // side walls
   for (let i = 0; i < n; i++) {
     const a = pts[i], b = pts[(i + 1) % n];
-    const a0 = [a[0], a[1], z0], b0 = [b[0], b[1], z0];
-    const a1 = [a[0], a[1], z1], b1 = [b[0], b[1], z1];
-    triangles.push([a0, b0, b1], [a0, b1, a1]);
+    triangles.push(
+      [[a[0], a[1], z0], [b[0], b[1], z0], [b[0], b[1], z1]],
+      [[a[0], a[1], z0], [b[0], b[1], z1], [a[0], a[1], z1]],
+    );
   }
 }
 
@@ -136,7 +136,6 @@ function ellipse(cx, cy, rx, ry, n = 48) {
   return p;
 }
 
-// Axis-aligned rectangle centered at (cx, cy).
 function rect(cx, cy, w, h) {
   const hw = w / 2, hh = h / 2;
   return [
@@ -145,30 +144,60 @@ function rect(cx, cy, w, h) {
   ];
 }
 
-// --- Geometry parameters -----------------------------------------------------
-
-const BASE_Z = 2;        // plate thickness
-const RELIEF_Z = 4;      // how far the marks stand proud of the plate
-const Z0 = BASE_Z, Z1 = BASE_Z + RELIEF_Z;
-const SPACING = 52;      // distance between logo centers
-const SLOTS = [-2, -1, 0, 1, 2].map((k) => k * SPACING);
-const PLATE_W = SPACING * 5 + 8;  // 268 → trimmed below
-const PLATE_H = 56;
-
-// Shared base plate (rests on Z = 0).
-extrude(rect(0, 0, 250, PLATE_H), 0, BASE_Z);
-
-// Emblem helpers: author each mark around its own origin, then drop into a slot.
-function emblem(slot, rings) {
-  const dx = SLOTS[slot];
-  for (const ring of rings) extrude(place(ring, { dx }), Z0, Z1);
+// Tapered band along a quadratic bezier: width w0 at the start easing to w1 at
+// the tip. Used for the SpaceX swoosh.
+function sweep(p0, p1, p2, w0, w1, n = 40) {
+  const pts = [], left = [], right = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, u = 1 - t;
+    const x = u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0];
+    const y = u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1];
+    const tx = 2 * u * (p1[0] - p0[0]) + 2 * t * (p2[0] - p1[0]);
+    const ty = 2 * u * (p1[1] - p0[1]) + 2 * t * (p2[1] - p1[1]);
+    const l = Math.hypot(tx, ty) || 1;
+    const w = (w0 + (w1 - w0) * t) / 2;
+    left.push([x - (ty / l) * w, y + (tx / l) * w]);
+    right.push([x + (ty / l) * w, y - (tx / l) * w]);
+  }
+  return pts.concat(left, right.reverse());
 }
 
-// 1. Apple — silhouette with a bite, plus leaf and stem ----------------------
-function appleRings() {
-  const body = circle(0, -1, 16, 64);
-  // Carve a circular bite out of the right side.
-  const biteC = [17, 2], biteR = 7.5;
+// Spiral band (one polygon, no hole): outer edge out, inner edge back.
+// Reads as the Nvidia swirl-eye.
+function spiral(cx, cy, rIn, rOut, turns, w, n = 80) {
+  const outer = [], inner = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const ang = deg(120) + t * turns * TAU;
+    const r = rIn + (rOut - rIn) * t;
+    outer.push([cx + (r + w / 2) * Math.cos(ang), cy + (r + w / 2) * Math.sin(ang)]);
+    inner.push([cx + (r - w / 2) * Math.cos(ang), cy + (r - w / 2) * Math.sin(ang)]);
+  }
+  return outer.concat(inner.reverse());
+}
+
+// --- The apple base plate ----------------------------------------------------
+
+const PLATE_Z = 4;       // apple plate thickness
+const RELIEF_Z = 3;      // how far the inner marks stand proud of the plate
+const Z1 = PLATE_Z, Z2 = PLATE_Z + RELIEF_Z;
+
+// Apple body: a tall circle with a deep dimple at the crown, a slight dimple
+// at the bottom, and a circular bite carved out of the right side.
+function appleBody() {
+  const R = 50, n = 200;
+  const body = [];
+  for (let i = 0; i < n; i++) {
+    const th = (i / n) * TAU;
+    let r = R;
+    // crown dimple (around 90°) and base dimple (around 270°)
+    const dTop = Math.exp(-(((th - deg(90)) / deg(16)) ** 2));
+    const dBot = Math.exp(-(((th - deg(270)) / deg(13)) ** 2));
+    r -= 13 * dTop + 6 * dBot;
+    body.push([r * Math.cos(th), r * Math.sin(th) * 1.04]);
+  }
+  // Bite: project points that fall inside the bite circle onto its boundary.
+  const biteC = [54, 12], biteR = 24;
   for (const p of body) {
     const dx = p[0] - biteC[0], dy = p[1] - biteC[1];
     const d = Math.hypot(dx, dy);
@@ -177,57 +206,52 @@ function appleRings() {
       p[1] = biteC[1] + (dy / d) * biteR;
     }
   }
-  // Top dimple: pinch the crown inward to read as an apple, not a ball.
-  for (const p of body) {
-    if (p[1] > 12 && Math.abs(p[0]) < 6) p[1] -= 4;
-  }
-  const leaf = place(ellipse(0, 0, 3.2, 6.5), { rot: 35, dx: 5, dy: 16 });
-  const stem = place(rect(0, 0, 1.6, 5), { rot: -12, dx: -1, dy: 16 });
-  return [body, leaf, stem];
+  return body;
 }
 
-// 2. Anthropic — stylized "A" -------------------------------------------------
-function anthropicRings() {
-  const legL = place(rect(0, 0, 5, 34), { rot: -15, dx: -7, dy: 0 });
-  const legR = place(rect(0, 0, 5, 34), { rot: 15, dx: 7, dy: 0 });
-  const bar = rect(0, -3, 16, 5);
-  return [legL, legR, bar];
+extrude(appleBody(), 0, Z1);
+// Leaf, floating above the crown gap like the real mark.
+extrude(place(ellipse(0, 0, 9, 18, 56), { rot: -38, dx: 14, dy: 64 }), 0, Z1);
+
+// --- The four marks raised on the apple --------------------------------------
+
+// Anthropic "A" — upper left.
+{
+  const at = { dx: -19, dy: 18 };
+  extrude(place(rect(0, 0, 4.5, 26), { rot: -16, dx: -6 + at.dx, dy: at.dy }), Z1, Z2);
+  extrude(place(rect(0, 0, 4.5, 26), { rot: 16, dx: 6 + at.dx, dy: at.dy }), Z1, Z2);
+  extrude(place(rect(0, -2.5, 13, 4.5), at), Z1, Z2);
 }
 
-// 3. SpaceX — bold "X" --------------------------------------------------------
-function spacexRings() {
-  const d1 = place(rect(0, 0, 5.5, 38), { rot: 38 });
-  const d2 = place(rect(0, 0, 5.5, 38), { rot: -38 });
-  return [d1, d2];
+// SpaceX — swoosh sweeping across the apple, tapering to a point upper right.
+extrude(sweep([-32, -10], [4, 0], [35, 27], 5.5, 1.0), Z1, Z2);
+// …and the "X", mid right.
+{
+  const at = { dx: 18, dy: -4 };
+  extrude(place(rect(0, 0, 4.5, 21), { rot: 35, ...at }), Z1, Z2);
+  extrude(place(rect(0, 0, 4.5, 21), { rot: -35, ...at }), Z1, Z2);
 }
 
-// 4. Nvidia — bold "N" --------------------------------------------------------
-function nvidiaRings() {
-  const left = rect(-11, 0, 5.5, 34);
-  const right = rect(11, 0, 5.5, 34);
-  const diag = place(rect(0, 0, 5.5, 40), { rot: 30 });
-  return [left, right, diag];
-}
+// Nvidia swirl-eye — lower left.
+extrude(spiral(-25, -24, 2.5, 10.5, 1.4, 4), Z1, Z2);
 
-// 5. OpenAI — six-petal blossom ----------------------------------------------
-function openaiRings() {
-  const rings = [];
-  const R = 8;
+// OpenAI blossom — bottom center-right.
+{
+  const cx = 10, cy = -29, R = 6.5;
   for (let i = 0; i < 6; i++) {
-    const ang = (i / 6) * 360;
-    const r = (ang * Math.PI) / 180;
-    const cx = R * Math.cos(r), cy = R * Math.sin(r);
-    rings.push(place(ellipse(0, 0, 3.6, 9, 40), { rot: ang + 90, dx: cx, dy: cy }));
+    const ang = i * 60;
+    const r = deg(ang);
+    extrude(
+      place(ellipse(0, 0, 2.9, 7.5, 36), {
+        rot: ang + 90,
+        dx: cx + R * Math.cos(r),
+        dy: cy + R * Math.sin(r),
+      }),
+      Z1, Z2,
+    );
   }
-  rings.push(circle(0, 0, 5.5, 40)); // hub
-  return rings;
+  extrude(circle(cx, cy, 4.4, 36), Z1, Z2);
 }
-
-emblem(0, appleRings());
-emblem(1, anthropicRings());
-emblem(2, spacexRings());
-emblem(3, nvidiaRings());
-emblem(4, openaiRings());
 
 // --- Binary STL writer -------------------------------------------------------
 
@@ -264,10 +288,12 @@ const outPath = join(outDir, 'company-logos.stl');
 writeFileSync(outPath, buffer);
 
 const xs = triangles.flat().map((p) => p[0]);
+const ys = triangles.flat().map((p) => p[1]);
 const zs = triangles.flat().map((p) => p[2]);
 console.log(`Wrote ${outPath}`);
 console.log(
   `${triangles.length} triangles, ` +
-  `width ${(Math.max(...xs) - Math.min(...xs)).toFixed(1)} mm, ` +
+  `${(Math.max(...xs) - Math.min(...xs)).toFixed(1)} × ` +
+  `${(Math.max(...ys) - Math.min(...ys)).toFixed(1)} mm footprint, ` +
   `height ${Math.min(...zs).toFixed(2)}..${Math.max(...zs).toFixed(2)} mm`,
 );
