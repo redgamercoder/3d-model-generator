@@ -60,3 +60,20 @@ Regenerate it (or tweak the dimensions) with:
 ```sh
 node scripts/generate-phone-stand.mjs
 ```
+
+## Example model: company logos
+
+[`models/company-logos.stl`](models/company-logos.stl) combines five tech
+logomarks on one base plate — **Apple**, **Anthropic**, **SpaceX**, **Nvidia**,
+and **OpenAI** — each as a 4 mm raised relief:
+
+- 250 mm wide, 56 mm deep, 6 mm tall (2 mm plate + 4 mm relief)
+- Stylized single-colour approximations (apple silhouette, letter forms, a
+  blossom) built from extruded polygons
+- Prints flat with no supports
+
+Regenerate it with:
+
+```sh
+node scripts/generate-logos.mjs
+```
