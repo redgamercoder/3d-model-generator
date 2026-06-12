@@ -60,3 +60,23 @@ Regenerate it (or tweak the dimensions) with:
 ```sh
 node scripts/generate-phone-stand.mjs
 ```
+
+## Example model: F1 race car
+
+[`models/f1-car.stl`](models/f1-car.stl) is a maximum-detail, display-scale
+Formula 1 car (~230 mm long, ≈1:24.5) procedurally built from lofted
+cross-sections and airfoils — **74k+ triangles**. It packs in:
+
+- a smooth, spline-lofted monocoque, sidepods, airbox and shark fin
+- multi-element front and rear wings with Gurney flaps, cascades, endplate
+  louvres and a beam wing
+- treaded tyres, drilled brake discs with calipers, and spoked rims
+- full aero-bladed suspension wishbones, pushrods and track rods
+- cockpit detail: halo, steering wheel, helmet with visor, and mirrors
+- diffuser strakes, floor fences, exhaust, rain light and rear crash structure
+
+Regenerate it with:
+
+```sh
+node scripts/generate-f1-car.mjs
+```
