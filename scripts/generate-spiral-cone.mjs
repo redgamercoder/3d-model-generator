@@ -1,0 +1,160 @@
+#!/usr/bin/env node
+// Generates models/spiral-cone.stl — a twisted "spiral cone" fidget: a tapered
+// cone with helical flutes that wind from the wide base up to the point, resting
+// on a short cylindrical plinth. Units are millimeters, Z is up, the model rests
+// on Z = 0. Prints upright with no supports.
+
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// --- Parameters (mm / counts) -----------------------------------------------
+
+const R0 = 26;          // cone radius at its base, before fluting
+const CONE_H = 62;      // height of the cone portion
+const AMP = 3.2;        // depth of the helical flutes
+const FLUTES = 9;       // number of spiral arms
+const TWIST_TURNS = 1.2;// full revolutions the flutes make over the height
+
+const BASE_R = 31;      // plinth radius (a small lip past the cone base)
+const BASE_H = 9;       // plinth height
+const BASE_FILLET = 2;  // rounded chamfer at the very bottom edge
+
+const N_THETA = 200;    // segments around
+const N_Z = 240;        // layers up the cone
+
+const triangles = [];
+const tri = (a, b, c) => triangles.push([a, b, c]);
+
+// A counter-clockwise quad (viewed from outside) -> two triangles.
+const quad = (a, b, c, d) => { tri(a, b, c); tri(a, c, d); };
+
+// --- Fluted cone -------------------------------------------------------------
+// Radius of the cone surface at a given height fraction t (0=base, 1=tip) and
+// angle theta. The flute amplitude fades to zero at the tip so it closes to a
+// clean point, and the flute phase rotates with height to make the spiral.
+
+function coneRadius(t, theta) {
+  const baseR = R0 * (1 - t);                 // linear taper to a point
+  const amp = AMP * (1 - t);                  // flutes vanish at the tip
+  const phase = theta + TWIST_TURNS * 2 * Math.PI * t;
+  return baseR + amp * Math.cos(FLUTES * phase);
+}
+
+function conePoint(iz, jt) {
+  const t = iz / N_Z;
+  const theta = (jt / N_THETA) * 2 * Math.PI;
+  const r = coneRadius(t, theta);
+  return [r * Math.cos(theta), r * Math.sin(theta), BASE_H + t * CONE_H];
+}
+
+// Side surface as a ring grid; the top ring collapses into the single tip vertex.
+const tip = [0, 0, BASE_H + CONE_H];
+for (let iz = 0; iz < N_Z; iz++) {
+  for (let jt = 0; jt < N_THETA; jt++) {
+    const jn = (jt + 1) % N_THETA;
+    if (iz === N_Z - 1) {
+      // Close the cap of triangles meeting at the tip.
+      tri(conePoint(iz, jt), conePoint(iz, jn), tip);
+    } else {
+      quad(
+        conePoint(iz, jt), conePoint(iz, jn),
+        conePoint(iz + 1, jn), conePoint(iz + 1, jt),
+      );
+    }
+  }
+}
+
+// Bottom cap of the cone (a fluted disk at z = BASE_H), sealing it onto the plinth.
+const coneBaseCenter = [0, 0, BASE_H];
+for (let jt = 0; jt < N_THETA; jt++) {
+  const jn = (jt + 1) % N_THETA;
+  tri(coneBaseCenter, conePoint(0, jn), conePoint(0, jt));
+}
+
+// --- Plinth (short cylinder with a rounded bottom edge) ----------------------
+
+function ring(z, r) {
+  const pts = [];
+  for (let jt = 0; jt < N_THETA; jt++) {
+    const theta = (jt / N_THETA) * 2 * Math.PI;
+    pts.push([r * Math.cos(theta), r * Math.sin(theta), z]);
+  }
+  return pts;
+}
+
+// Build the plinth profile bottom-up: a rounded fillet ring, then the straight wall.
+const profile = []; // [z, r] pairs from bottom to top
+const FILLET_STEPS = 8;
+for (let i = 0; i <= FILLET_STEPS; i++) {
+  const a = (i / FILLET_STEPS) * (Math.PI / 2);
+  profile.push([BASE_FILLET * (1 - Math.cos(a)), BASE_R - BASE_FILLET * (1 - Math.sin(a))]);
+}
+profile.push([BASE_H, BASE_R]); // top of wall meets the cone base
+
+const rings = profile.map(([z, r]) => ring(z, r));
+for (let i = 0; i < rings.length - 1; i++) {
+  for (let jt = 0; jt < N_THETA; jt++) {
+    const jn = (jt + 1) % N_THETA;
+    quad(rings[i][jt], rings[i][jn], rings[i + 1][jn], rings[i + 1][jt]);
+  }
+}
+
+// Plinth bottom cap (flat disk at z = 0).
+const baseBottom = ring(0, BASE_R - BASE_FILLET);
+const baseCenter = [0, 0, 0];
+for (let jt = 0; jt < N_THETA; jt++) {
+  const jn = (jt + 1) % N_THETA;
+  tri(baseCenter, baseBottom[jt], baseBottom[jn]);
+}
+
+// Plinth top cap (flat disk at z = BASE_H); overlaps the cone base ring — slicers
+// union the two solids cleanly.
+const baseTop = ring(BASE_H, BASE_R);
+const baseTopCenter = [0, 0, BASE_H];
+for (let jt = 0; jt < N_THETA; jt++) {
+  const jn = (jt + 1) % N_THETA;
+  tri(baseTopCenter, baseTop[jn], baseTop[jt]);
+}
+
+// --- Binary STL writer -------------------------------------------------------
+
+function normal([a, b, c]) {
+  const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+  const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+  const n = [
+    u[1] * v[2] - u[2] * v[1],
+    u[2] * v[0] - u[0] * v[2],
+    u[0] * v[1] - u[1] * v[0],
+  ];
+  const len = Math.hypot(...n) || 1;
+  return n.map((x) => x / len);
+}
+
+const buffer = Buffer.alloc(84 + triangles.length * 50);
+buffer.write('spiral cone fidget - generated by 3d-model-generator', 0, 'ascii');
+buffer.writeUInt32LE(triangles.length, 80);
+
+let offset = 84;
+for (const t of triangles) {
+  for (const vec of [normal(t), ...t]) {
+    buffer.writeFloatLE(vec[0], offset);
+    buffer.writeFloatLE(vec[1], offset + 4);
+    buffer.writeFloatLE(vec[2], offset + 8);
+    offset += 12;
+  }
+  offset += 2; // attribute byte count
+}
+
+const outDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'models');
+mkdirSync(outDir, { recursive: true });
+const outPath = join(outDir, 'spiral-cone.stl');
+writeFileSync(outPath, buffer);
+
+let zMin = Infinity, zMax = -Infinity;
+for (const t of triangles) for (const p of t) {
+  if (p[2] < zMin) zMin = p[2];
+  if (p[2] > zMax) zMax = p[2];
+}
+console.log(`Wrote ${outPath}`);
+console.log(`${triangles.length} triangles, height ${zMin.toFixed(2)}..${zMax.toFixed(2)} mm`);

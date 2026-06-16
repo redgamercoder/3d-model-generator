@@ -60,3 +60,19 @@ Regenerate it (or tweak the dimensions) with:
 ```sh
 node scripts/generate-phone-stand.mjs
 ```
+
+## Example model: spiral cone fidget
+
+[`models/spiral-cone.stl`](models/spiral-cone.stl) is a twisted "spiral cone"
+fidget — a tapered cone with helical flutes that wind from the base up to the
+point, on a short rounded plinth:
+
+- ~62 mm diameter base, ~71 mm tall (including the plinth)
+- 9 spiral arms making ~1.2 turns over the height
+- Prints upright with no supports; the flutes are forgiving of stringing
+
+Regenerate it (or tweak the flute count, twist, and depth) with:
+
+```sh
+node scripts/generate-spiral-cone.mjs
+```
