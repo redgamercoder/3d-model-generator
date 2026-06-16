@@ -1,8 +1,13 @@
 #!/usr/bin/env node
-// Generates models/spiral-cone.stl — a twisted "spiral cone" fidget: a tapered
-// cone with helical flutes that wind from the wide base up to the point, resting
-// on a short cylindrical plinth. Units are millimeters, Z is up, the model rests
-// on Z = 0. Prints upright with no supports.
+// Generates the two-part "spiral cone" fidget:
+//   models/spiral-cone-core.stl   — the positive inner cone (solid)
+//   models/spiral-cone-cover.stl  — the cover that slides/spins over the core
+//                                   (hollow spiral cone, pointed top, open base)
+//
+// Both parts share the same helical flute so the cover screws/spins down the
+// core's threads, with a small radial clearance for a smooth FDM fit. Units are
+// millimeters, Z is up, each part rests on Z = 0 and prints upright (base down,
+// point up) with no supports.
 
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -10,111 +15,132 @@ import { fileURLToPath } from 'node:url';
 
 // --- Parameters (mm / counts) -----------------------------------------------
 
-const R0 = 26;          // cone radius at its base, before fluting
-const CONE_H = 62;      // height of the cone portion
-const AMP = 3.2;        // depth of the helical flutes
-const FLUTES = 9;       // number of spiral arms
-const TWIST_TURNS = 1.2;// full revolutions the flutes make over the height
+const RB = 15.5;        // interface (mating) radius at the base, before fluting
+const AMP = 2.8;        // depth of the helical flutes
+const FLUTES = 8;       // number of spiral arms
+const TWIST_TURNS = 1.25; // full revolutions the flutes make over the height
+const CONE_H = 78;      // core height = depth of the cover's cavity
 
-const BASE_R = 31;      // plinth radius (a small lip past the cone base)
-const BASE_H = 9;       // plinth height
-const BASE_FILLET = 2;  // rounded chamfer at the very bottom edge
+const CLEAR = 0.40;     // radial clearance between core and cover (≈0.8 mm dia.)
+const WALL = 2.2;       // cover wall thickness
+const CAP = 5;          // solid tip the cover adds above the core's point
 
-const N_THETA = 200;    // segments around
-const N_Z = 240;        // layers up the cone
+const N_THETA = 180;    // segments around
+const N_Z = 200;        // layers up the height
 
-const triangles = [];
-const tri = (a, b, c) => triangles.push([a, b, c]);
+const HV = CONE_H + CAP; // total cover height (to its tip)
 
-// A counter-clockwise quad (viewed from outside) -> two triangles.
-const quad = (a, b, c, d) => { tri(a, b, c); tri(a, c, d); };
-
-// --- Fluted cone -------------------------------------------------------------
-// Radius of the cone surface at a given height fraction t (0=base, 1=tip) and
-// angle theta. The flute amplitude fades to zero at the tip so it closes to a
-// clean point, and the flute phase rotates with height to make the spiral.
-
-function coneRadius(t, theta) {
-  const baseR = R0 * (1 - t);                 // linear taper to a point
-  const amp = AMP * (1 - t);                  // flutes vanish at the tip
+// The shared mating helicoid: a tapered cone with helical flutes that fade to a
+// point at the top. The core sits CLEAR/2 inside this; the cover CLEAR/2 outside.
+function rMesh(t, theta) {
   const phase = theta + TWIST_TURNS * 2 * Math.PI * t;
-  return baseR + amp * Math.cos(FLUTES * phase);
+  return RB * (1 - t) + AMP * (1 - t) * Math.cos(FLUTES * phase);
 }
 
-function conePoint(iz, jt) {
-  const t = iz / N_Z;
-  const theta = (jt / N_THETA) * 2 * Math.PI;
-  const r = coneRadius(t, theta);
-  return [r * Math.cos(theta), r * Math.sin(theta), BASE_H + t * CONE_H];
+const theta = (jt) => (jt / N_THETA) * 2 * Math.PI;
+
+// --- Mesh helpers ------------------------------------------------------------
+
+function makeMesh() {
+  const tris = [];
+  const tri = (a, b, c) => tris.push([a, b, c]);
+  const quad = (a, b, c, d) => { tri(a, b, c); tri(a, c, d); }; // CCW from outside
+  return { tris, tri, quad };
 }
 
-// Side surface as a ring grid; the top ring collapses into the single tip vertex.
-const tip = [0, 0, BASE_H + CONE_H];
-for (let iz = 0; iz < N_Z; iz++) {
-  for (let jt = 0; jt < N_THETA; jt++) {
-    const jn = (jt + 1) % N_THETA;
-    if (iz === N_Z - 1) {
-      // Close the cap of triangles meeting at the tip.
-      tri(conePoint(iz, jt), conePoint(iz, jn), tip);
-    } else {
-      quad(
-        conePoint(iz, jt), conePoint(iz, jn),
-        conePoint(iz + 1, jn), conePoint(iz + 1, jt),
-      );
+// --- Core: solid fluted cone -------------------------------------------------
+
+function buildCore() {
+  const { tris, tri, quad } = makeMesh();
+  const EPS = 0.35; // keep all ring vertices off the axis; close with one tip
+  const coreR = (t, th) => rMesh(t, th) - CLEAR / 2;
+  const pt = (iz, jt) => {
+    const t = iz / N_Z;
+    const th = theta(jt);
+    const r = coreR(t, th);
+    return [r * Math.cos(th), r * Math.sin(th), t * CONE_H];
+  };
+
+  // Highest ring whose narrowest point is still clear of the axis.
+  let lastFull = 0;
+  for (let iz = 0; iz <= N_Z; iz++) {
+    let mn = Infinity;
+    for (let jt = 0; jt < N_THETA; jt++) mn = Math.min(mn, coreR(iz / N_Z, theta(jt)));
+    if (mn > EPS) lastFull = iz; else break;
+  }
+  const tip = [0, 0, CONE_H - 1]; // a hair below the cover's cavity ceiling
+
+  for (let iz = 0; iz < lastFull; iz++) {
+    for (let jt = 0; jt < N_THETA; jt++) {
+      const jn = (jt + 1) % N_THETA;
+      quad(pt(iz, jt), pt(iz, jn), pt(iz + 1, jn), pt(iz + 1, jt));
     }
   }
-}
-
-// Bottom cap of the cone (a fluted disk at z = BASE_H), sealing it onto the plinth.
-const coneBaseCenter = [0, 0, BASE_H];
-for (let jt = 0; jt < N_THETA; jt++) {
-  const jn = (jt + 1) % N_THETA;
-  tri(coneBaseCenter, conePoint(0, jn), conePoint(0, jt));
-}
-
-// --- Plinth (short cylinder with a rounded bottom edge) ----------------------
-
-function ring(z, r) {
-  const pts = [];
-  for (let jt = 0; jt < N_THETA; jt++) {
-    const theta = (jt / N_THETA) * 2 * Math.PI;
-    pts.push([r * Math.cos(theta), r * Math.sin(theta), z]);
-  }
-  return pts;
-}
-
-// Build the plinth profile bottom-up: a rounded fillet ring, then the straight wall.
-const profile = []; // [z, r] pairs from bottom to top
-const FILLET_STEPS = 8;
-for (let i = 0; i <= FILLET_STEPS; i++) {
-  const a = (i / FILLET_STEPS) * (Math.PI / 2);
-  profile.push([BASE_FILLET * (1 - Math.cos(a)), BASE_R - BASE_FILLET * (1 - Math.sin(a))]);
-}
-profile.push([BASE_H, BASE_R]); // top of wall meets the cone base
-
-const rings = profile.map(([z, r]) => ring(z, r));
-for (let i = 0; i < rings.length - 1; i++) {
+  // Close the top from the last full ring to a single tip.
   for (let jt = 0; jt < N_THETA; jt++) {
     const jn = (jt + 1) % N_THETA;
-    quad(rings[i][jt], rings[i][jn], rings[i + 1][jn], rings[i + 1][jt]);
+    tri(pt(lastFull, jt), pt(lastFull, jn), tip);
   }
+  // Flat fluted bottom cap (normal points down).
+  const center = [0, 0, 0];
+  for (let jt = 0; jt < N_THETA; jt++) {
+    const jn = (jt + 1) % N_THETA;
+    tri(center, pt(0, jn), pt(0, jt));
+  }
+  return tris;
 }
 
-// Plinth bottom cap (flat disk at z = 0).
-const baseBottom = ring(0, BASE_R - BASE_FILLET);
-const baseCenter = [0, 0, 0];
-for (let jt = 0; jt < N_THETA; jt++) {
-  const jn = (jt + 1) % N_THETA;
-  tri(baseCenter, baseBottom[jt], baseBottom[jn]);
-}
+// --- Cover: hollow spiral cone, pointed top, open bottom ---------------------
 
-// Plinth top cap (flat disk at z = BASE_H); overlaps the cone base ring — slicers
-// union the two solids cleanly.
-const baseTop = ring(BASE_H, BASE_R);
-const baseTopCenter = [0, 0, BASE_H];
-for (let jt = 0; jt < N_THETA; jt++) {
-  const jn = (jt + 1) % N_THETA;
-  tri(baseTopCenter, baseTop[jn], baseTop[jt]);
+function buildCover() {
+  const { tris, tri, quad } = makeMesh();
+  const tip = [0, 0, HV];          // outer tip
+  const apex = [0, 0, CONE_H];     // cavity ceiling (top of the hollow)
+
+  // Outer radius: follows the mating cone + wall up to the core's tip, then a
+  // short solid taper to the point.
+  function rOut(z, th) {
+    if (z <= CONE_H) return rMesh(z / CONE_H, th) + CLEAR / 2 + WALL;
+    const frac = (z - CONE_H) / CAP;
+    return (CLEAR / 2 + WALL) * (1 - frac);
+  }
+  const rIn = (t, th) => rMesh(t, th) + CLEAR / 2;
+
+  const outPt = (iz, jt) => {
+    const z = (iz / N_Z) * HV;
+    const th = theta(jt);
+    const r = Math.max(rOut(z, th), 0);
+    return [r * Math.cos(th), r * Math.sin(th), z];
+  };
+  const inPt = (iz, jt) => {
+    const t = iz / N_Z;
+    const th = theta(jt);
+    const r = rIn(t, th);
+    return [r * Math.cos(th), r * Math.sin(th), t * CONE_H];
+  };
+
+  // Outer surface (normals out).
+  for (let iz = 0; iz < N_Z; iz++) {
+    for (let jt = 0; jt < N_THETA; jt++) {
+      const jn = (jt + 1) % N_THETA;
+      if (iz === N_Z - 1) tri(outPt(iz, jt), outPt(iz, jn), tip);
+      else quad(outPt(iz, jt), outPt(iz, jn), outPt(iz + 1, jn), outPt(iz + 1, jt));
+    }
+  }
+  // Inner cavity surface (reversed winding so normals point inward).
+  for (let iz = 0; iz < N_Z; iz++) {
+    for (let jt = 0; jt < N_THETA; jt++) {
+      const jn = (jt + 1) % N_THETA;
+      if (iz === N_Z - 1) tri(inPt(iz, jn), inPt(iz, jt), apex);
+      else quad(inPt(iz, jt), inPt(iz + 1, jt), inPt(iz + 1, jn), inPt(iz, jn));
+    }
+  }
+  // Bottom annulus joining the inner and outer base rings (normal down).
+  for (let jt = 0; jt < N_THETA; jt++) {
+    const jn = (jt + 1) % N_THETA;
+    quad(outPt(0, jt), inPt(0, jt), inPt(0, jn), outPt(0, jn));
+  }
+  return tris;
 }
 
 // --- Binary STL writer -------------------------------------------------------
@@ -131,30 +157,35 @@ function normal([a, b, c]) {
   return n.map((x) => x / len);
 }
 
-const buffer = Buffer.alloc(84 + triangles.length * 50);
-buffer.write('spiral cone fidget - generated by 3d-model-generator', 0, 'ascii');
-buffer.writeUInt32LE(triangles.length, 80);
-
-let offset = 84;
-for (const t of triangles) {
-  for (const vec of [normal(t), ...t]) {
-    buffer.writeFloatLE(vec[0], offset);
-    buffer.writeFloatLE(vec[1], offset + 4);
-    buffer.writeFloatLE(vec[2], offset + 8);
-    offset += 12;
+function writeStl(filename, header, triangles) {
+  const buffer = Buffer.alloc(84 + triangles.length * 50);
+  buffer.write(header, 0, 'ascii');
+  buffer.writeUInt32LE(triangles.length, 80);
+  let offset = 84;
+  for (const t of triangles) {
+    for (const vec of [normal(t), ...t]) {
+      buffer.writeFloatLE(vec[0], offset);
+      buffer.writeFloatLE(vec[1], offset + 4);
+      buffer.writeFloatLE(vec[2], offset + 8);
+      offset += 12;
+    }
+    offset += 2; // attribute byte count
   }
-  offset += 2; // attribute byte count
+  const outDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'models');
+  mkdirSync(outDir, { recursive: true });
+  const outPath = join(outDir, filename);
+  writeFileSync(outPath, buffer);
+
+  let zMin = Infinity, zMax = -Infinity, rMax = 0;
+  for (const t of triangles) for (const p of t) {
+    if (p[2] < zMin) zMin = p[2];
+    if (p[2] > zMax) zMax = p[2];
+    rMax = Math.max(rMax, Math.hypot(p[0], p[1]));
+  }
+  console.log(`Wrote ${outPath}`);
+  console.log(`  ${triangles.length} triangles, ` +
+    `Ø${(rMax * 2).toFixed(1)} mm, height ${zMin.toFixed(1)}..${zMax.toFixed(1)} mm`);
 }
 
-const outDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'models');
-mkdirSync(outDir, { recursive: true });
-const outPath = join(outDir, 'spiral-cone.stl');
-writeFileSync(outPath, buffer);
-
-let zMin = Infinity, zMax = -Infinity;
-for (const t of triangles) for (const p of t) {
-  if (p[2] < zMin) zMin = p[2];
-  if (p[2] > zMax) zMax = p[2];
-}
-console.log(`Wrote ${outPath}`);
-console.log(`${triangles.length} triangles, height ${zMin.toFixed(2)}..${zMax.toFixed(2)} mm`);
+writeStl('spiral-cone-core.stl', 'spiral cone fidget (core) - 3d-model-generator', buildCore());
+writeStl('spiral-cone-cover.stl', 'spiral cone fidget (cover) - 3d-model-generator', buildCover());

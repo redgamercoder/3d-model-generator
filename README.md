@@ -61,17 +61,22 @@ Regenerate it (or tweak the dimensions) with:
 node scripts/generate-phone-stand.mjs
 ```
 
-## Example model: spiral cone fidget
+## Example model: spiral cone fidget (two parts)
 
-[`models/spiral-cone.stl`](models/spiral-cone.stl) is a twisted "spiral cone"
-fidget — a tapered cone with helical flutes that wind from the base up to the
-point, on a short rounded plinth:
+A twisted "spiral cone" fidget that prints as two interlocking pieces — a solid
+**core** and a hollow **cover** that slides and spins down the core's helical
+threads:
 
-- ~62 mm diameter base, ~71 mm tall (including the plinth)
-- 9 spiral arms making ~1.2 turns over the height
-- Prints upright with no supports; the flutes are forgiving of stringing
+- [`models/spiral-cone-core.stl`](models/spiral-cone-core.stl) — the positive
+  inner cone, Ø36 mm × 77 mm tall.
+- [`models/spiral-cone-cover.stl`](models/spiral-cone-cover.stl) — the cover,
+  Ø41 mm × 83 mm tall, with a pointed top and an open base that sleeves over the
+  core.
 
-Regenerate it (or tweak the flute count, twist, and depth) with:
+Both share the same 8-arm helix (≈1.25 turns), with a 0.4 mm radial clearance
+so the cover spins smoothly. Print each part upright (base down, point up) — no
+supports needed. If the fit is too loose or tight, change `CLEAR` in the script
+and regenerate.
 
 ```sh
 node scripts/generate-spiral-cone.mjs
