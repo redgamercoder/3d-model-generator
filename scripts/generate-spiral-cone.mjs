@@ -217,5 +217,15 @@ function writeStl(filename, header, triangles) {
     `Ø${(rMax * 2).toFixed(1)} mm, height ${zMin.toFixed(1)}..${zMax.toFixed(1)} mm`);
 }
 
-writeStl('spiral-cone-core.stl', 'spiral cone fidget (core) - 3d-model-generator', buildCore());
-writeStl('spiral-cone-cover.stl', 'spiral cone fidget (cover) - 3d-model-generator', buildCover());
+const coreTris = buildCore();
+const coverTris = buildCover();
+
+// Offset the cover to sit beside the core (gap of 5 mm between them).
+const SPACING = RB * 2 + WALL * 2 + CLEAR + 5;
+const coverOffset = coverTris.map(([a, b, c]) =>
+  [a, b, c].map(([x, y, z]) => [x + SPACING, y, z])
+);
+
+writeStl('spiral-cone-core.stl', 'spiral cone fidget (core) - 3d-model-generator', coreTris);
+writeStl('spiral-cone-cover.stl', 'spiral cone fidget (cover) - 3d-model-generator', coverTris);
+writeStl('spiral-cone.stl', 'spiral cone fidget (both parts) - 3d-model-generator', [...coreTris, ...coverOffset]);
