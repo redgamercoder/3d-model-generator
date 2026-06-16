@@ -69,14 +69,15 @@ threads:
 
 - [`models/spiral-cone-core.stl`](models/spiral-cone-core.stl) — the positive
   inner cone, Ø36 mm × 77 mm tall.
-- [`models/spiral-cone-cover.stl`](models/spiral-cone-cover.stl) — the cover,
-  Ø41 mm × 83 mm tall, with a pointed top and an open base that sleeves over the
-  core.
+- [`models/spiral-cone-cover.stl`](models/spiral-cone-cover.stl) — the cover, an
+  open spiral cage: Ø42 mm × 72 mm tall, with a solid base band, eight spiral
+  ribs and open windows between them, and free tips at the top. The core drops
+  inside and spins.
 
 Both share the same 8-arm helix (≈1.25 turns), with a 0.4 mm radial clearance
-so the cover spins smoothly. Print each part upright (base down, point up) — no
-supports needed. If the fit is too loose or tight, change `CLEAR` in the script
-and regenerate.
+so the core spins smoothly inside the cage. Print each part upright (base down,
+point up) — no supports needed. Tune `CLEAR` (fit), `RIB_HALF` (rib width vs.
+window size), or `BAND_H` in the script and regenerate.
 
 ```sh
 node scripts/generate-spiral-cone.mjs
