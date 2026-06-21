@@ -121,7 +121,7 @@ const SPIGOT_H = 14.0;   // insertion depth into the booster
 const SHOULDER_Z = 16.5; // where the Ø80 shoulder finishes (seats on booster rim)
 const TOTAL_H = 250.0;   // overall Starship height (taller than the booster)
 const R_TIP = 4.0;       // rounded nose-tip dome radius (to scale with the photos)
-const NOSE_VIRT = 68.0;  // tangent-ogive "virtual" length before the tip is rounded
+const NOSE_VIRT = 82.0;  // tangent-ogive "virtual" length before the tip is rounded (taller dome)
 
 // Tangent-ogive radius as a function of height u above the nose base
 const rho = (R_BODY * R_BODY + NOSE_VIRT * NOSE_VIRT) / (2 * R_BODY);
