@@ -120,20 +120,26 @@ const R_SPIGOT = 37.0;   // Ø74 mating ring — 0.5 mm radial clearance into Ø
 const SPIGOT_H = 14.0;   // insertion depth into the booster
 const SHOULDER_Z = 16.5; // where the Ø80 shoulder finishes (seats on booster rim)
 const TOTAL_H = 250.0;   // overall Starship height (taller than the booster)
-const R_TIP = 4.0;       // rounded nose-tip dome radius (to scale with the photos)
-const NOSE_VIRT = 82.0;  // tangent-ogive "virtual" length before the tip is rounded (taller dome)
+const R_BLEND = 6.0;     // ogive radius where the tip rounding begins
+const NOSE_VIRT = 82.0;  // tangent-ogive "virtual" length (controls how tall/slender the nose is)
 
 // Tangent-ogive radius as a function of height u above the nose base
 const rho = (R_BODY * R_BODY + NOSE_VIRT * NOSE_VIRT) / (2 * R_BODY);
 const ogive = (u) => Math.sqrt(Math.max(0, rho * rho - u * u)) - (rho - R_BODY);
 
-// Round the nose tip with a small dome of radius R_TIP: find where the ogive
-// narrows to R_TIP, then cap it so the apex lands exactly at TOTAL_H. The nose
-// ends up ≈ 26 % of the height with a domed tip, matching the reference photos.
-let uTip = NOSE_VIRT;
-for (let u = 0; u <= NOSE_VIRT; u += 0.01) { if (ogive(u) <= R_TIP) { uTip = u; break; } }
-const NOSE_LEN = uTip + R_TIP;            // real nose height incl. dome
-const BODY_TOP = TOTAL_H - NOSE_LEN;      // top of the cylindrical tank section
+// Round the nose tip with an arc that is TANGENT to the ogive, so the dome
+// closes smoothly to a single clean apex (no tip nub/dot). The tangent circle
+// that meets the ogive at radius R_BLEND and reaches the axis has radius
+// rhoTip = R_BLEND·rho/A, centred on the axis.
+let uB = NOSE_VIRT;
+for (let u = 0; u <= NOSE_VIRT; u += 0.01) { if (ogive(u) <= R_BLEND) { uB = u; break; } }
+const Rb = ogive(uB);
+const A = Math.sqrt(rho * rho - uB * uB);
+const rhoTip = Rb * rho / A;                 // tangent tip-arc radius
+const zCenter = uB - Rb * uB / A;            // arc centre height (above nose base)
+const thetaB = Math.acos(Rb / rhoTip);       // arc angle at the blend point
+const NOSE_LEN = zCenter + rhoTip;           // nose height incl. domed tip
+const BODY_TOP = TOTAL_H - NOSE_LEN;         // top of the cylindrical tank section
 
 // =============================================================================
 //  THE SHELL — one watertight revolve of a hollow outline (open ring base)
@@ -144,14 +150,14 @@ outer.push([R_SPIGOT, 0]);            // ring base, outer
 outer.push([R_SPIGOT, SPIGOT_H]);     // straight spigot wall
 outer.push([R_BODY, SHOULDER_Z]);     // flare out to the seating shoulder
 outer.push([R_BODY, BODY_TOP]);       // smooth cylindrical body
-for (let u = 1; u <= uTip; u += 1) outer.push([ogive(u), BODY_TOP + u]);         // ogive nose
-for (let i = 1; i <= 8; i++) {                                                   // rounded tip dome
-  const a = (Math.PI / 2) * (i / 8);
-  outer.push([R_TIP * Math.cos(a), BODY_TOP + uTip + R_TIP * Math.sin(a)]);
+for (let u = 1; u <= uB; u += 1) outer.push([ogive(u), BODY_TOP + u]);            // ogive nose
+for (let i = 1; i <= 16; i++) {                                                   // tangent rounded dome
+  const a = thetaB + (Math.PI / 2 - thetaB) * (i / 16);
+  outer.push([rhoTip * Math.cos(a), BODY_TOP + zCenter + rhoTip * Math.sin(a)]);
 }
 
 const inner = [];   // top -> bottom, inner surface (cavity), coarser (hidden)
-for (let u = uTip - 2; u >= 0; u -= 2.5) {
+for (let u = uB - 2; u >= 0; u -= 2.5) {
   const ri = ogive(u) - WALL;
   if (ri > 0.4) inner.push([ri, BODY_TOP + u]);   // hollow nose interior
 }
@@ -192,10 +198,10 @@ function flap(thetaDeg, zRoot, chordRoot, chordTip, span, sweep, thick) {
   }
   loft(loops);
 }
-// forward flaps: smaller, just below the nose/body junction, leading edge swept
-// up toward the nose (per photos)
-flap(90, BODY_TOP - 21, 32, 16, 13, 7, 4.5);
-flap(270, BODY_TOP - 21, 32, 16, 13, 7, 4.5);
+// forward flaps: smaller, just below the nose/body junction, flipped upside-down
+// (leading edge swept the opposite way to the aft flaps)
+flap(90, BODY_TOP - 21, 32, 16, 13, -7, 4.5);
+flap(270, BODY_TOP - 21, 32, 16, 13, -7, 4.5);
 // aft flaps: larger, low on the body, leading edge swept down toward the tail
 flap(90, 46, 46, 24, 17, -8, 5.5);
 flap(270, 46, 46, 24, 17, -8, 5.5);
@@ -265,5 +271,5 @@ for (const tri of triangles) for (const p of tri) for (let k = 0; k < 3; k++) {
 }
 console.log(`Wrote models/starship.stl — ${triangles.length} triangles`);
 console.log(`bbox x ${lo[0].toFixed(1)}..${hi[0].toFixed(1)}  y ${lo[1].toFixed(1)}..${hi[1].toFixed(1)}  z ${lo[2].toFixed(1)}..${hi[2].toFixed(1)}`);
-console.log(`height ${TOTAL_H} mm · nose ${NOSE_LEN.toFixed(1)} mm (${(NOSE_LEN / TOTAL_H * 100).toFixed(0)}%) domed tip Ø${(R_TIP * 2)} · single lug bore Ø${(LUG_RI * 2)} at x=${LUG_X}`);
+console.log(`height ${TOTAL_H} mm · nose ${NOSE_LEN.toFixed(1)} mm (${(NOSE_LEN / TOTAL_H * 100).toFixed(0)}%) tangent dome r${rhoTip.toFixed(1)} · single lug bore Ø${(LUG_RI * 2)} at x=${LUG_X}`);
 console.log(`mating ring Ø${(R_SPIGOT * 2).toFixed(1)} (into booster Ø75.0 socket) · shoulder Ø${(R_BODY * 2).toFixed(1)} seats on rim · spigot depth ${SPIGOT_H}`);
