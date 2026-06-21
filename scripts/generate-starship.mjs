@@ -198,12 +198,13 @@ function flap(thetaDeg, zRoot, chordRoot, chordTip, span, sweep, thick) {
   }
   loft(loops);
 }
-// forward flaps: smaller, right at the nose/body junction, swept (upside-down)
-flap(90, BODY_TOP - 17, 30, 15, 13, -8, 4.5);
-flap(270, BODY_TOP - 17, 30, 15, 13, -8, 4.5);
-// aft flaps: larger, at the very base of the body, swept toward the tail
-flap(90, 42, 46, 24, 18, -9, 5.5);
-flap(270, 42, 46, 24, 18, -9, 5.5);
+// forward flaps: at the nose/body junction, swept (upside-down). Sized to scale
+// with the photo — larger chord and more projection.
+flap(90, BODY_TOP - 19, 40, 21, 18, -10, 5.0);
+flap(270, BODY_TOP - 19, 40, 21, 18, -10, 5.0);
+// aft flaps: large, at the base of the body, swept toward the tail
+flap(90, 45, 56, 30, 25, -12, 6.5);
+flap(270, 45, 56, 30, 25, -12, 6.5);
 
 // =============================================================================
 //  LAUNCH LUG / ROD HOLE — matches the booster's lug (bore at x=45.5, y=0)
