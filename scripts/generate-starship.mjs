@@ -119,28 +119,39 @@ const WALL = 2.5;        // shell wall thickness
 const R_SPIGOT = 37.0;   // Ø74 mating ring — 0.5 mm radial clearance into Ø75 socket
 const SPIGOT_H = 14.0;   // insertion depth into the booster
 const SHOULDER_Z = 16.5; // where the Ø80 shoulder finishes (seats on booster rim)
-const TOTAL_H = 188.0;   // as tall as the Super Heavy booster (z -8..180 = 188 mm)
-const NOSE_LEN = 58.0;   // tangent-ogive nose length
-const BODY_TOP = TOTAL_H - NOSE_LEN; // top of the cylindrical tank section (130)
-const TIP_Z = TOTAL_H;   // 188
+const TOTAL_H = 250.0;   // overall Starship height (taller than the booster)
+const R_TIP = 4.0;       // rounded nose-tip dome radius (to scale with the photos)
+const NOSE_VIRT = 68.0;  // tangent-ogive "virtual" length before the tip is rounded
 
-// Tangent-ogive radius as a function of height u above the nose base (0..NOSE_LEN)
-const rho = (R_BODY * R_BODY + NOSE_LEN * NOSE_LEN) / (2 * R_BODY);
+// Tangent-ogive radius as a function of height u above the nose base
+const rho = (R_BODY * R_BODY + NOSE_VIRT * NOSE_VIRT) / (2 * R_BODY);
 const ogive = (u) => Math.sqrt(Math.max(0, rho * rho - u * u)) - (rho - R_BODY);
+
+// Round the nose tip with a small dome of radius R_TIP: find where the ogive
+// narrows to R_TIP, then cap it so the apex lands exactly at TOTAL_H. The nose
+// ends up ≈ 26 % of the height with a domed tip, matching the reference photos.
+let uTip = NOSE_VIRT;
+for (let u = 0; u <= NOSE_VIRT; u += 0.01) { if (ogive(u) <= R_TIP) { uTip = u; break; } }
+const NOSE_LEN = uTip + R_TIP;            // real nose height incl. dome
+const BODY_TOP = TOTAL_H - NOSE_LEN;      // top of the cylindrical tank section
 
 // =============================================================================
 //  THE SHELL — one watertight revolve of a hollow outline (open ring base)
 // =============================================================================
-// Smooth steel body (no weld bands) — a clean cylinder up to the ogive nose.
+// Smooth steel body (no weld bands) — a clean cylinder up to the domed nose.
 const outer = [];   // bottom -> top, outer surface
 outer.push([R_SPIGOT, 0]);            // ring base, outer
 outer.push([R_SPIGOT, SPIGOT_H]);     // straight spigot wall
 outer.push([R_BODY, SHOULDER_Z]);     // flare out to the seating shoulder
 outer.push([R_BODY, BODY_TOP]);       // smooth cylindrical body
-for (let u = 1; u <= NOSE_LEN; u += 1) outer.push([Math.max(0, ogive(u)), BODY_TOP + u]);   // nose to apex
+for (let u = 1; u <= uTip; u += 1) outer.push([ogive(u), BODY_TOP + u]);         // ogive nose
+for (let i = 1; i <= 8; i++) {                                                   // rounded tip dome
+  const a = (Math.PI / 2) * (i / 8);
+  outer.push([R_TIP * Math.cos(a), BODY_TOP + uTip + R_TIP * Math.sin(a)]);
+}
 
 const inner = [];   // top -> bottom, inner surface (cavity), coarser (hidden)
-for (let u = NOSE_LEN - 2; u >= 0; u -= 2.5) {
+for (let u = uTip - 2; u >= 0; u -= 2.5) {
   const ri = ogive(u) - WALL;
   if (ri > 0.4) inner.push([ri, BODY_TOP + u]);   // hollow nose interior
 }
@@ -181,21 +192,24 @@ function flap(thetaDeg, zRoot, chordRoot, chordTip, span, sweep, thick) {
   }
   loft(loops);
 }
-// forward flaps: smaller, high on the body just below the nose, raked back
-flap(90, BODY_TOP - 17, 26, 17, 11, 5, 4.0);
-flap(270, BODY_TOP - 17, 26, 17, 11, 5, 4.0);
-// aft flaps: larger, at the base of the body, raked back
-flap(90, SHOULDER_Z + 24, 38, 24, 13, 6, 5.0);
-flap(270, SHOULDER_Z + 24, 38, 24, 13, 6, 5.0);
+// forward flaps: smaller, just below the nose/body junction, leading edge swept
+// up toward the nose (per photos)
+flap(90, BODY_TOP - 21, 32, 16, 13, 7, 4.5);
+flap(270, BODY_TOP - 21, 32, 16, 13, 7, 4.5);
+// aft flaps: larger, low on the body, leading edge swept down toward the tail
+flap(90, 46, 46, 24, 17, -8, 5.5);
+flap(270, 46, 46, 24, 17, -8, 5.5);
 
 // =============================================================================
 //  LAUNCH LUG / ROD HOLE — matches the booster's lug (bore at x=45.5, y=0)
 // =============================================================================
-// A vertical tube standing off the +X side with a through-bore, collinear with
-// the booster's rod hole so the same launch rod threads both stages. Tied to the
-// hull by a thin standoff web that stops short of the bore.
-const LUG_X = 45.5, LUG_RO = 4.5, LUG_RI = 2.6; // bore Ø5.2 (rod ~Ø5 slides through)
-const LUG_Z0 = 22, LUG_Z1 = 132;
+// A SINGLE short launch lug (not a full-length rail) standing off the +X side
+// with a through-bore, collinear with the booster's rod hole so the same launch
+// rod threads both stages. Tied to the hull by a thin standoff web clear of the
+// bore. Bore sized to match the booster (Ø5).
+const LUG_X = 45.5, LUG_RO = 4.5, LUG_RI = 2.5; // bore Ø5, outer Ø9 — same as booster
+const LUG_LEN = 26;                             // one short lug, not a massive rail
+const LUG_Z0 = SHOULDER_Z + 14, LUG_Z1 = SHOULDER_Z + 14 + LUG_LEN; // low on the body
 
 function ringPts(cx, r, z, seg) {
   const a = [];
@@ -251,4 +265,5 @@ for (const tri of triangles) for (const p of tri) for (let k = 0; k < 3; k++) {
 }
 console.log(`Wrote models/starship.stl — ${triangles.length} triangles`);
 console.log(`bbox x ${lo[0].toFixed(1)}..${hi[0].toFixed(1)}  y ${lo[1].toFixed(1)}..${hi[1].toFixed(1)}  z ${lo[2].toFixed(1)}..${hi[2].toFixed(1)}`);
+console.log(`height ${TOTAL_H} mm · nose ${NOSE_LEN.toFixed(1)} mm (${(NOSE_LEN / TOTAL_H * 100).toFixed(0)}%) domed tip Ø${(R_TIP * 2)} · single lug bore Ø${(LUG_RI * 2)} at x=${LUG_X}`);
 console.log(`mating ring Ø${(R_SPIGOT * 2).toFixed(1)} (into booster Ø75.0 socket) · shoulder Ø${(R_BODY * 2).toFixed(1)} seats on rim · spigot depth ${SPIGOT_H}`);

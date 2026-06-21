@@ -85,17 +85,18 @@ node scripts/generate-f1-car.mjs
 
 [`models/starship.stl`](models/starship.stl) is a Starship (upper stage)
 designed to mount on top of a Super Heavy booster as a two-stage model rocket.
-It is a hollow, smooth-steel shell (Ø80 mm body, **188 mm tall — as tall as the
-booster**) with a tangent-ogive nose and two forward + two aft flaps.
+It is a hollow, smooth-steel shell (Ø80 mm body, **250 mm tall**) with a
+domed-tip ogive nose (≈28 % of the height) and two forward + two larger aft
+flaps shaped to reference photos.
 
 Key features, all measured directly from the supplied booster STL:
 
 - **Mating ring at the base**: a Ø74 mm spigot that plugs into the booster's
   Ø75 mm top socket (0.5 mm radial slip-fit), with a Ø80 mm shoulder that seats
   on the booster's rim so the two stages share one continuous silhouette.
-- **Launch-lug / rod hole**: a vertical tube with a Ø5.2 mm through-bore on the
-  +X side, collinear with the booster's launch lug (bore at x = 45.5, y = 0), so
-  a single launch rod threads both stages.
+- **Launch-lug / rod hole**: a single short lug with a Ø5 mm through-bore on the
+  +X side (same bore as the booster), collinear with the booster's launch lug
+  (bore at x = 45.5, y = 0) so one launch rod lines up with both stages.
 
 Notes:
 
