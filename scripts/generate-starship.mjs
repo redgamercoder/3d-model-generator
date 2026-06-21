@@ -119,26 +119,24 @@ const WALL = 2.5;        // shell wall thickness
 const R_SPIGOT = 37.0;   // Ø74 mating ring — 0.5 mm radial clearance into Ø75 socket
 const SPIGOT_H = 14.0;   // insertion depth into the booster
 const SHOULDER_Z = 16.5; // where the Ø80 shoulder finishes (seats on booster rim)
-const BODY_TOP = 100.0;  // top of the cylindrical tank section
+const TOTAL_H = 188.0;   // as tall as the Super Heavy booster (z -8..180 = 188 mm)
 const NOSE_LEN = 58.0;   // tangent-ogive nose length
-const TIP_Z = BODY_TOP + NOSE_LEN; // 158
+const BODY_TOP = TOTAL_H - NOSE_LEN; // top of the cylindrical tank section (130)
+const TIP_Z = TOTAL_H;   // 188
 
 // Tangent-ogive radius as a function of height u above the nose base (0..NOSE_LEN)
 const rho = (R_BODY * R_BODY + NOSE_LEN * NOSE_LEN) / (2 * R_BODY);
 const ogive = (u) => Math.sqrt(Math.max(0, rho * rho - u * u)) - (rho - R_BODY);
 
-// Steel weld-band ridges (the look of Starship's stacked barrel sections)
-const RIDGES = [32, 48, 64, 80, 96];
-const ridgeBump = (z) => RIDGES.reduce((s, zr) => s + 0.7 * Math.exp(-(((z - zr) / 0.85) ** 2)), 0);
-
 // =============================================================================
 //  THE SHELL — one watertight revolve of a hollow outline (open ring base)
 // =============================================================================
+// Smooth steel body (no weld bands) — a clean cylinder up to the ogive nose.
 const outer = [];   // bottom -> top, outer surface
 outer.push([R_SPIGOT, 0]);            // ring base, outer
 outer.push([R_SPIGOT, SPIGOT_H]);     // straight spigot wall
 outer.push([R_BODY, SHOULDER_Z]);     // flare out to the seating shoulder
-for (let z = SHOULDER_Z + 1; z <= BODY_TOP; z += 1) outer.push([R_BODY + ridgeBump(z), z]); // banded body
+outer.push([R_BODY, BODY_TOP]);       // smooth cylindrical body
 for (let u = 1; u <= NOSE_LEN; u += 1) outer.push([Math.max(0, ogive(u)), BODY_TOP + u]);   // nose to apex
 
 const inner = [];   // top -> bottom, inner surface (cavity), coarser (hidden)
@@ -156,30 +154,76 @@ inner.push([R_SPIGOT - WALL, 0]);                 // ring base, inner
 revolve([...outer, ...inner], 220);
 
 // =============================================================================
-//  FLAPS — two forward (by the nose) + two aft (by the tail)
+//  FLAPS — Starship V2 control surfaces: two forward + two larger aft.
 // =============================================================================
-// A flap is a thin, swept, tapering fin lofted along the radial (±X) span; thin
-// in Y, chord along Z, rounded edges. Root starts inside the body so it unions
+// Modelled as panel-like surfaces: a long chord along the body axis, a short
+// radial protrusion, a swept (raked) leading edge and rounded corners — i.e.
+// flaps lying back against the hull, not airplane wings. Placed on the ±Y sides
+// (clear of the +X launch lug). Root starts just inside the skin so it unions
 // with the shell when sliced.
-function flap(side, zRoot, chordRoot, chordTip, span, sweep, thick) {
-  const N = 14, loops = [];
+function flap(thetaDeg, zRoot, chordRoot, chordTip, span, sweep, thick) {
+  const th = deg(thetaDeg);
+  const er = [Math.cos(th), Math.sin(th), 0];   // radial (protrusion) direction
+  const et = [-Math.sin(th), Math.cos(th), 0];  // tangential (thickness) direction
+  const N = 16, loops = [];
   for (let i = 0; i <= N; i++) {
     const f = i / N;
-    const x = side * (R_BODY - 4 + span * f);
+    const r = (R_BODY - 4) + span * f;            // start inside the skin
     const chord = chordRoot + (chordTip - chordRoot) * f;
-    const t = thick * (1 - 0.5 * f);
-    const zc = zRoot + sweep * f;
-    const rr = roundedRect(chord, t, Math.min(t * 0.5, chord * 0.25), 5);
-    loops.push(rr.map(([s, yy]) => [x, yy, zc + s]));
+    const t = thick * (1 - 0.45 * f);
+    const zc = zRoot + sweep * f;                 // swept leading/trailing edge
+    const rr = roundedRect(chord, t, Math.min(t * 0.5, chord * 0.3), 6); // [s=chord(z), y=thick(et)]
+    loops.push(rr.map(([s, yy]) => [
+      er[0] * r + et[0] * yy,
+      er[1] * r + et[1] * yy,
+      zc + s,
+    ]));
   }
   loft(loops);
 }
-// forward flaps (smaller, high on the body, swept toward the nose)
-flap(+1, 90, 20, 13, 17, 4, 4.0);
-flap(-1, 90, 20, 13, 17, 4, 4.0);
-// aft flaps (larger, low on the body, swept toward the tail)
-flap(+1, 34, 30, 18, 22, -5, 5.0);
-flap(-1, 34, 30, 18, 22, -5, 5.0);
+// forward flaps: smaller, high on the body just below the nose, raked back
+flap(90, BODY_TOP - 17, 26, 17, 11, 5, 4.0);
+flap(270, BODY_TOP - 17, 26, 17, 11, 5, 4.0);
+// aft flaps: larger, at the base of the body, raked back
+flap(90, SHOULDER_Z + 24, 38, 24, 13, 6, 5.0);
+flap(270, SHOULDER_Z + 24, 38, 24, 13, 6, 5.0);
+
+// =============================================================================
+//  LAUNCH LUG / ROD HOLE — matches the booster's lug (bore at x=45.5, y=0)
+// =============================================================================
+// A vertical tube standing off the +X side with a through-bore, collinear with
+// the booster's rod hole so the same launch rod threads both stages. Tied to the
+// hull by a thin standoff web that stops short of the bore.
+const LUG_X = 45.5, LUG_RO = 4.5, LUG_RI = 2.6; // bore Ø5.2 (rod ~Ø5 slides through)
+const LUG_Z0 = 22, LUG_Z1 = 132;
+
+function ringPts(cx, r, z, seg) {
+  const a = [];
+  for (let i = 0; i < seg; i++) { const t = (2 * Math.PI * i) / seg; a.push([cx + r * Math.cos(t), r * Math.sin(t), z]); }
+  return a;
+}
+// Hollow tube (pipe) along Z with an open through-bore — a watertight solid.
+function pipe(cx, rOut, rIn, z0, z1, seg = 40) {
+  const oa = ringPts(cx, rOut, z0, seg), ob = ringPts(cx, rOut, z1, seg);
+  const ia = ringPts(cx, rIn, z0, seg), ib = ringPts(cx, rIn, z1, seg);
+  const t = [];
+  for (let i = 0; i < seg; i++) {
+    const j = (i + 1) % seg;
+    t.push([oa[i], oa[j], ob[j]], [oa[i], ob[j], ob[i]]);   // outer wall
+    t.push([ia[i], ib[j], ia[j]], [ia[i], ib[i], ib[j]]);   // inner wall
+    t.push([oa[i], ia[j], oa[j]], [oa[i], ia[i], ia[j]]);   // bottom annulus
+    t.push([ob[i], ob[j], ib[j]], [ob[i], ib[j], ib[i]]);   // top annulus
+  }
+  addSolid(t);
+}
+// Axis-aligned box [x0,x1]×[y0,y1]×[z0,z1].
+function box3(x0, x1, y0, y1, z0, z1) {
+  const lo = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  loft([lo.map(([x, y]) => [x, y, z0]), lo.map(([x, y]) => [x, y, z1])]);
+}
+pipe(LUG_X, LUG_RO, LUG_RI, LUG_Z0, LUG_Z1);                       // the rod tube
+// continuous standoff web tying the tube to the hull, stopping short of the bore
+box3(R_BODY - 1, LUG_X - LUG_RI - 0.6, -1.8, 1.8, LUG_Z0, LUG_Z1);
 
 // =============================================================================
 //  write binary STL

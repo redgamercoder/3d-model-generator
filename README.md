@@ -85,19 +85,24 @@ node scripts/generate-f1-car.mjs
 
 [`models/starship.stl`](models/starship.stl) is a Starship (upper stage)
 designed to mount on top of a Super Heavy booster as a two-stage model rocket.
-It is a hollow, steel-banded shell (Ø80 mm body, 158 mm tall, **77k+
-triangles**) with a tangent-ogive nose and two forward + two aft flaps.
+It is a hollow, smooth-steel shell (Ø80 mm body, **188 mm tall — as tall as the
+booster**) with a tangent-ogive nose and two forward + two aft flaps.
 
-The key feature is the **mating ring at the base**: a Ø74 mm spigot that plugs
-into the booster's Ø75 mm top socket (0.5 mm radial slip-fit), with a Ø80 mm
-shoulder that seats on the booster's rim so the two stages share one continuous
-silhouette. Dimensions were measured directly from the supplied booster STL
-(open top socket: inner Ø75, outer Ø80, wall ≈2.5 mm).
+Key features, all measured directly from the supplied booster STL:
+
+- **Mating ring at the base**: a Ø74 mm spigot that plugs into the booster's
+  Ø75 mm top socket (0.5 mm radial slip-fit), with a Ø80 mm shoulder that seats
+  on the booster's rim so the two stages share one continuous silhouette.
+- **Launch-lug / rod hole**: a vertical tube with a Ø5.2 mm through-bore on the
+  +X side, collinear with the booster's launch lug (bore at x = 45.5, y = 0), so
+  a single launch rod threads both stages.
+
+Notes:
 
 - Prints nose-up as a vase — the open base ring sits on the bed, no internal
   supports needed; the flaps want light supports (or print them flat).
-- Verified watertight (0 non-paired edges) and collision-free against the
-  booster bore.
+- Verified watertight (0 non-paired edges), open rod bore, and collision-free
+  against the booster bore.
 
 Regenerate it with:
 
