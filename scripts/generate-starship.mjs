@@ -121,7 +121,7 @@ const SPIGOT_H = 14.0;   // insertion depth into the booster
 const SHOULDER_Z = 16.5; // where the Ø80 shoulder finishes (seats on booster rim)
 const TOTAL_H = 250.0;   // overall Starship height (taller than the booster)
 const R_BLEND = 4.0;     // ogive radius where the tip rounding begins (smaller = sharper, still smooth)
-const NOSE_VIRT = 95.0;  // tangent-ogive "virtual" length — long, pointed nose like the photo
+const NOSE_VIRT = 87.0;  // tangent-ogive "virtual" length — long, pointed nose like the photo
 
 // Tangent-ogive radius as a function of height u above the nose base
 const rho = (R_BODY * R_BODY + NOSE_VIRT * NOSE_VIRT) / (2 * R_BODY);
@@ -198,13 +198,13 @@ function flap(thetaDeg, zRoot, chordRoot, chordTip, span, sweep, thick) {
   }
   loft(loops);
 }
-// forward flaps: at the nose/body junction, swept (upside-down). Sized to scale
-// with the photo — larger chord and more projection.
-flap(90, BODY_TOP - 19, 40, 21, 18, -10, 5.0);
-flap(270, BODY_TOP - 19, 40, 21, 18, -10, 5.0);
-// aft flaps: large, at the base of the body, swept toward the tail
-flap(90, 45, 56, 30, 25, -12, 6.5);
-flap(270, 45, 56, 30, 25, -12, 6.5);
+// forward flaps: swept deltas tucked right under the nose — steep leading-edge
+// rake, tall root, small tip, like the photo.
+flap(90, BODY_TOP - 22, 44, 13, 20, -16, 4.5);
+flap(270, BODY_TOP - 22, 44, 13, 20, -16, 4.5);
+// aft flaps: large swept deltas at the base of the body
+flap(90, 46, 56, 18, 26, -18, 6.0);
+flap(270, 46, 56, 18, 26, -18, 6.0);
 
 // =============================================================================
 //  LAUNCH LUG / ROD HOLE — matches the booster's lug (bore at x=45.5, y=0)
