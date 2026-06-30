@@ -202,9 +202,9 @@ function flap(thetaDeg, zRoot, chordRoot, chordTip, span, sweep, thick) {
 // rake, tall root, small tip, like the photo.
 flap(90, BODY_TOP - 22, 44, 13, 20, -16, 4.5);
 flap(270, BODY_TOP - 22, 44, 13, 20, -16, 4.5);
-// aft flaps: large swept deltas at the base of the body
-flap(90, 46, 56, 18, 26, -18, 6.0);
-flap(270, 46, 56, 18, 26, -18, 6.0);
+// aft flaps: the larger pair — bigger swept deltas at the base of the body
+flap(90, 49, 64, 24, 32, -20, 6.5);
+flap(270, 49, 64, 24, 32, -20, 6.5);
 
 // =============================================================================
 //  LAUNCH LUG / ROD HOLE — matches the booster's lug (bore at x=45.5, y=0)
