@@ -185,7 +185,7 @@ function flap(thetaDeg, zRoot, chordRoot, chordTip, span, sweep, thick) {
   const N = 16, loops = [];
   for (let i = 0; i <= N; i++) {
     const f = i / N;
-    const r = (R_BODY - 4) + span * f;            // start inside the skin
+    const r = (R_BODY - 7) + span * f;            // start deeper inside the skin (solid attach)
     const chord = chordRoot + (chordTip - chordRoot) * f;
     const t = thick * (1 - 0.45 * f);
     const zc = zRoot + sweep * f;                 // swept leading/trailing edge
@@ -198,13 +198,13 @@ function flap(thetaDeg, zRoot, chordRoot, chordTip, span, sweep, thick) {
   }
   loft(loops);
 }
-// forward flaps: high on the ship, right at the nose base (~74% of height),
-// swept back — matching the photo's position and angle.
-flap(90, 164, 44, 17, 27, -22, 5.5);
-flap(270, 164, 44, 17, 27, -22, 5.5);
+// forward flaps: high on the ship, up at the nose base (~77% of height), swept
+// back — same tilt/size, just positioned higher.
+flap(90, 169, 44, 17, 30, -22, 5.5);
+flap(270, 169, 44, 17, 30, -22, 5.5);
 // aft flaps: swept deltas at the base of the body
-flap(90, 46, 56, 18, 26, -18, 6.0);
-flap(270, 46, 56, 18, 26, -18, 6.0);
+flap(90, 46, 56, 18, 29, -18, 6.0);
+flap(270, 46, 56, 18, 29, -18, 6.0);
 
 // =============================================================================
 //  LAUNCH LUG / ROD HOLE — matches the booster's lug (bore at x=45.5, y=0)
