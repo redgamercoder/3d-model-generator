@@ -198,13 +198,13 @@ function flap(thetaDeg, zRoot, chordRoot, chordTip, span, sweep, thick) {
   }
   loft(loops);
 }
-// forward flaps: swept deltas tucked right under the nose — steep leading-edge
+// forward flaps: enlarged swept deltas tucked under the nose — steep leading-edge
 // rake, tall root, small tip, like the photo.
-flap(90, BODY_TOP - 22, 44, 13, 20, -16, 4.5);
-flap(270, BODY_TOP - 22, 44, 13, 20, -16, 4.5);
-// aft flaps: the larger pair — bigger swept deltas at the base of the body
-flap(90, 49, 64, 24, 32, -20, 6.5);
-flap(270, 49, 64, 24, 32, -20, 6.5);
+flap(90, BODY_TOP - 27, 54, 18, 28, -22, 5.5);
+flap(270, BODY_TOP - 27, 54, 18, 28, -22, 5.5);
+// aft flaps: swept deltas at the base of the body
+flap(90, 46, 56, 18, 26, -18, 6.0);
+flap(270, 46, 56, 18, 26, -18, 6.0);
 
 // =============================================================================
 //  LAUNCH LUG / ROD HOLE — matches the booster's lug (bore at x=45.5, y=0)
