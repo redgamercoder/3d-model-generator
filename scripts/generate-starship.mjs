@@ -185,7 +185,7 @@ function flap(thetaDeg, zRoot, chordRoot, chordTip, span, sweep, thick) {
   const N = 16, loops = [];
   for (let i = 0; i <= N; i++) {
     const f = i / N;
-    const r = (R_BODY - 10) + span * f;           // start deep inside the skin (solid attach on the narrowing nose)
+    const r = (R_BODY - 12) + span * f;           // start deep inside the skin (solid attach on the narrowing nose)
     const chord = chordRoot + (chordTip - chordRoot) * f;
     const t = thick * (1 - 0.45 * f);
     const zc = zRoot + sweep * f;                 // swept leading/trailing edge
@@ -198,13 +198,13 @@ function flap(thetaDeg, zRoot, chordRoot, chordTip, span, sweep, thick) {
   }
   loft(loops);
 }
-// forward flaps: up high on the nose (top reaches ~82% of height), swept back —
-// same tilt/size, just raised into the circled region.
-flap(90, 182, 44, 17, 33, -22, 5.5);
-flap(270, 182, 44, 17, 33, -22, 5.5);
+// forward flaps: up high on the nose (top reaches ~84% of height), swept back —
+// same tilt/size, raised a bit more into the circled region.
+flap(90, 187, 44, 17, 35, -22, 5.5);
+flap(270, 187, 44, 17, 35, -22, 5.5);
 // aft flaps: swept deltas at the base of the body
-flap(90, 46, 56, 18, 32, -18, 6.0);
-flap(270, 46, 56, 18, 32, -18, 6.0);
+flap(90, 46, 56, 18, 34, -18, 6.0);
+flap(270, 46, 56, 18, 34, -18, 6.0);
 
 // =============================================================================
 //  LAUNCH LUG / ROD HOLE — matches the booster's lug (bore at x=45.5, y=0)
