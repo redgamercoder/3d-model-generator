@@ -198,10 +198,10 @@ function flap(thetaDeg, zRoot, chordRoot, chordTip, span, sweep, thick) {
   }
   loft(loops);
 }
-// forward flaps: enlarged swept deltas tucked under the nose — steep leading-edge
-// rake, tall root, small tip, like the photo.
-flap(90, BODY_TOP - 27, 54, 18, 28, -22, 5.5);
-flap(270, BODY_TOP - 27, 54, 18, 28, -22, 5.5);
+// forward flaps: high on the ship, right at the nose base (~74% of height),
+// swept back — matching the photo's position and angle.
+flap(90, 164, 44, 17, 27, -22, 5.5);
+flap(270, 164, 44, 17, 27, -22, 5.5);
 // aft flaps: swept deltas at the base of the body
 flap(90, 46, 56, 18, 26, -18, 6.0);
 flap(270, 46, 56, 18, 26, -18, 6.0);
